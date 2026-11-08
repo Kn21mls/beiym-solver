@@ -1,0 +1,25 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><title>Локальная проверка Beyim Solver</title>
+<style>body{font:20px system-ui;max-width:720px;margin:60px auto}label{display:block;padding:12px}button,input{font:inherit}button{margin:12px;padding:10px}fieldset{padding:24px}</style>
+<main id="lesson"></main>
+<script>
+let index=0, submissions=0;
+const lessons=[
+ {question:'Реши уравнение 3x + 7 = 22',options:['3','5','7'],type:'radio',correct:['5']},
+ {question:'Выбери чётные числа',options:['2','3','4'],type:'checkbox',correct:['2','4']},
+ {question:'Чему равно 2 + 2?',options:['3','4','5'],type:'radio',correct:['4']}
+];
+function render(){
+ const q=lessons[index];
+ if(!q){document.querySelector('main').innerHTML='<h1>Тест завершён</h1>';return;}
+ document.querySelector('main').innerHTML=`<fieldset id="question"><legend>${q.question}</legend>${q.options.map((v,i)=>`<label><input name="answer" type="${q.type}" value="${v}"> ${v}</label>`).join('')}</fieldset><button id="check" onclick="checkAnswer()">Проверить</button><button id="next" hidden onclick="index++;render()">Далее</button><p id="result"></p>`;
+}
+function checkAnswer(){
+ const picked=[...document.querySelectorAll('input:checked')].map(x=>x.value).sort();
+ if(JSON.stringify(picked)!==JSON.stringify(lessons[index].correct)) {document.querySelector('#result').textContent='Неверно';return;}
+ submissions++;
+ document.querySelector('#check').disabled=true;
+ document.querySelector('#result').textContent='Верно';
+ document.querySelector('#next').hidden=false;
+}
+render();
+</script></html>

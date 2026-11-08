@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.state/
+*.log
+config.json
+dist/
+.live-question.json
+docs/beyim-verified.jpg
+

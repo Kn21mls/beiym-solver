@@ -1,0 +1,21 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><title>Beyim DOM adapter fixture</title>
+<style>body{font:18px system-ui;margin:40px} .activity{margin:30px;padding:20px;border:1px solid #ddd}.swiper-slide{display:none}.swiper-slide-active{display:block}label{display:block;padding:10px}input[hidden]{display:none}.swiper-button-next,.swiper-button-prev{display:inline-block;padding:10px;cursor:pointer}.answerTrue{background:#cfeccf}</style>
+<main></main>
+<script>
+window.fixtureSubmissions=0;
+const data=[['3 + 2?', ['4','5','6']], ['2 + 2?', ['3','4','5']]];
+for(let group=0;group<2;group++){
+ const container=document.createElement('div');container.className='activity relative';
+ container.innerHTML=`<div class="swiper"><div class="swiper-wrapper">${data.map(([q,opts],index)=>`<div class="swiper-slide ${index===0?'swiper-slide-active':''}"><div><span>Упражнения</span><div class="question">${q} Группа ${group+1}.</div><form class="activity"><div>${opts.map((v,i)=>`<input id="g${group}s${index}o${i}" hidden readonly type="radio" name="answer" value="${i}"><label class="option" for="g${group}s${index}o${i}">${v}</label>`).join('')}</div><button type="submit" disabled>Проверить</button></form></div></div>`).join('')}</div><div class="swiper-button-prev swiper-button-disabled">Назад</div><div class="swiper-button-next">Далее</div></div>`;
+ document.querySelector('main').append(container);
+ let active=0;
+ const slides=[...container.querySelectorAll('.swiper-slide')];
+ function navigate(delta){active=Math.max(0,Math.min(slides.length-1,active+delta));slides.forEach((s,i)=>s.classList.toggle('swiper-slide-active',i===active));container.querySelector('.swiper-button-prev').classList.toggle('swiper-button-disabled',active===0);container.querySelector('.swiper-button-next').classList.toggle('swiper-button-disabled',active===slides.length-1);}
+ container.querySelector('.swiper-button-prev').onclick=()=>navigate(-1);
+ container.querySelector('.swiper-button-next').onclick=()=>navigate(1);
+ for(const form of container.querySelectorAll('form')){
+   form.addEventListener('change',()=>form.querySelector('button').disabled=false);
+   form.addEventListener('submit',e=>{e.preventDefault();window.fixtureSubmissions++;const input=form.querySelector('input:checked');if(input?.value==='1')input.labels[0].classList.add('answerTrue');});
+ }
+}
+</script></html>

@@ -1,0 +1,20 @@
+{
+  "url": "https://beyim.ai/ru/ai/feed",
+  "ollama_url": "http://127.0.0.1:11434",
+  "model": "qwen3:4b",
+  "browser": "msedge",
+  "max_questions": 30,
+  "min_confidence": 0.8,
+  "timeout": 180,
+  "thinking": false,
+  "transition_timeout": 15,
+  "selectors": {
+    "root": "",
+    "question": "",
+    "options": "",
+    "input": "",
+    "submit": "",
+    "next": "",
+    "complete": ""
+  }
+}
