@@ -1,10 +1,10 @@
-# Beyim Solver для macOS
+# Beyim Solver для macOS!
 
 Приложение для macOS: Python + Playwright, облачный OpenRouter или Groq, либо локальная Ollama. Открывает Beyim в отдельном окне Chromium, читает упражнение, получает ответ от модели, выбирает вариант, нажимает «Проверить» и переходит к следующему упражнению. Облачные сервисы требуют API-ключ; Ollama работает локально без ключа.
 
 Версия для Windows находится в ветке `windows`. Эта ветка (`mac`) содержит версию для macOS.
 
-## Требования
+## Требовани
 
 - macOS 12 или новее.
 - Python 3.14 с Tkinter. Рекомендуется установщик с [python.org](https://www.python.org/downloads/macos/): он включает Tkinter. Для Homebrew может понадобиться `brew install python-tk@3.14`.
