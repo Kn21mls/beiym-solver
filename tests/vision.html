@@ -1,0 +1,19 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><title>Local vision verification</title>
+<style>body{font:20px Arial;margin:40px;max-width:650px;background:white;color:#172436}fieldset{border:1px solid #aaa;padding:20px}legend{padding:10px}label{display:block;padding:8px}canvas{display:block;margin:20px 0}button{font:inherit;padding:10px}</style>
+<fieldset id="question"><legend>Сколько синих кругов изображено на рисунке?</legend>
+<canvas width="480" height="150" id="drawing"></canvas>
+<label><input type="radio" name="answer" value="2"> 2</label>
+<label><input type="radio" name="answer" value="3"> 3</label>
+<label><input type="radio" name="answer" value="4"> 4</label>
+</fieldset><button id="submit">Проверить</button><p id="result"></p>
+<script>
+const ctx=document.querySelector('canvas').getContext('2d');
+ctx.fillStyle='#1372bd';
+for(const x of [80,240,400]){ctx.beginPath();ctx.arc(x,75,42,0,Math.PI*2);ctx.fill();}
+window.submitted=0;
+document.querySelector('#submit').onclick=()=>{
+ window.submitted++;
+ const value=document.querySelector('input:checked')?.value;
+ document.querySelector('#result').textContent=value==='3'?'Тест завершён':'Неверный ответ';
+};
+</script></html>

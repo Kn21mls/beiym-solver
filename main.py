@@ -3,27 +3,48 @@ from __future__ import annotations
 import argparse
 import json
 import threading
+import sys
+import subprocess
+from pathlib import Path
 
-from beyim_solver.core import Ollama, Question, Settings, SolverError
+from beyim_solver.cloud import create_client, selected_model
+from beyim_solver.core import Question, Settings, SolverError
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Beyim Solver — локальный решатель Ollama")
-    parser.add_argument("--doctor", action="store_true", help="Проверить Ollama и список моделей")
+    # Double-clicking main.py may otherwise use the system's unrelated Python.
+    interpreter = Path(__file__).resolve().parent / '.venv' / 'Scripts' / 'python.exe'
+    if interpreter.exists() and Path(sys.executable).resolve() != interpreter.resolve():
+        raise SystemExit(subprocess.call([str(interpreter), str(Path(__file__).resolve()), *sys.argv[1:]]))
+    parser = argparse.ArgumentParser(description="Beyim Solver — Groq / Ollama")
+    parser.add_argument("--doctor", action="store_true", help="Проверить выбранный сервис и список моделей")
     parser.add_argument("--smoke-test", action="store_true", help="Проверить решение простого уравнения реальной моделью")
+    parser.add_argument("--vision-smoke-test", action="store_true", help="Проверить полный цикл на локальном задании с рисунком")
+    parser.add_argument("--full-smoke-test", action="store_true", help="Текст → рисунок → текст и освобождение памяти")
+    parser.add_argument("--provider", choices=("groq", "ollama"), help="Сервис для проверки без изменения config.json")
     args = parser.parse_args()
+    if args.vision_smoke_test or args.full_smoke_test:
+        from beyim_solver.verification import check_vision
+        try:
+            check_vision(full=args.full_smoke_test, provider=args.provider)
+        except SolverError as exc:
+            print(str(exc))
+            raise SystemExit(1)
+        return
     if not (args.doctor or args.smoke_test):
         from beyim_solver.gui import main as gui
         gui()
         return
     try:
         settings = Settings.load()
-        client = Ollama(settings)
+        if args.provider:
+            settings.provider = args.provider
+        client = create_client(settings)
         models = client.models()
-        print("Ollama:", settings.ollama_url)
+        print("Сервис:", settings.provider)
         print("Модели:", ", ".join(models))
-        if settings.model not in models:
-            raise SolverError(f"Сначала выполните: ollama pull {settings.model}")
+        if selected_model(settings) not in models:
+            raise SolverError(f"Модель {selected_model(settings)} недоступна для выбранного сервиса.")
         if args.smoke_test:
             q = Question("Реши уравнение 3x + 7 = 22. Чему равен x?", [
                 {"text": "3"}, {"text": "5"}, {"text": "7"}], "single")

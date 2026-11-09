@@ -91,6 +91,20 @@ class BrowserTests(unittest.TestCase):
         self.browser.apply(q, {"text_answer": "4"}, self.stop)
         self.assertEqual(self.page.locator("#answer").input_value(), "4")
 
+    def test_image_resize_and_oversized_guard(self):
+        self.page.locator('fieldset').evaluate("e => {e.style.width='1800px'; e.style.height='600px'}")
+        q = self.browser.read()
+        data = self.browser.image(q)
+        size = self.page.evaluate("""async data => {
+            const img = new Image(); img.src = 'data:image/jpeg;base64,' + data;
+            await img.decode(); return [img.width, img.height];
+        }""", data)
+        self.assertEqual(max(size), 1400)
+        self.assertGreater(size[0], size[1])
+        self.page.locator('fieldset').evaluate("e => e.style.height='4000px'")
+        with self.assertRaisesRegex(SolverError, 'слишком большой'):
+            self.browser.image(self.browser.read())
+
     def test_checkbox_clears_old_selection(self):
         self.page.evaluate("index=1;render()")
         self.page.locator('input[value="3"]').check()

@@ -2,9 +2,10 @@ import json
 import threading
 import time
 import unittest
+from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from beyim_solver.core import Cancelled, Ollama, Question, Settings, SolverError, validate_answer
+from beyim_solver.core import ANSWER_SCHEMA, Cancelled, Ollama, Question, Settings, SolverError, answer_schema, validate_answer
 
 
 def answer(ids=None, **changes):
@@ -94,6 +95,108 @@ class TransportTests(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 1.2)
         timer.join()
 
+
+class ModelResponseTests(unittest.TestCase):
+    def setUp(self):
+        self.q = Question("3x + 7 = 22. x?", [{"text": "3"}, {"text": "5"}, {"text": "7"}], "single")
+
+    def client(self, responses, stop=None):
+        class Stub(Ollama):
+            def __init__(self):
+                super().__init__(Settings())
+                self.calls = []
+
+            def request(self, path, body=None, *args, **kwargs):
+                if path == "/api/ps":
+                    return {"models": []}
+                if path == "/api/generate":
+                    return {}
+                if path == "/api/show":
+                    return {"capabilities": ["thinking"]}
+                self.calls.append(json.loads(json.dumps(body)))
+                response = responses[len(self.calls) - 1]
+                if stop:
+                    stop.set()
+                return {"message": {"content": json.dumps(response)}, "done_reason": "stop"}
+        return Stub()
+
+    def test_single_choice_constrains_ids_not_numeric_answer(self):
+        schema = answer_schema(self.q)
+        ids = schema['properties']['answer_ids']
+        self.assertEqual(ids['items']['enum'], [1, 2, 3])
+        self.assertEqual((ids['minItems'], ids['maxItems']), (1, 1))
+        self.assertEqual(schema['properties']['text_answer']['enum'], [''])
+        self.assertEqual(next(iter(schema['properties'])), 'explanation')
+        self.assertNotIn('enum', ANSWER_SCHEMA['properties']['answer_ids']['items'])
+
+    def test_multiple_and_text_have_separate_schemas(self):
+        self.q.kind = 'multiple'
+        self.assertEqual(answer_schema(self.q)['properties']['answer_ids']['maxItems'], 3)
+        self.q.kind, self.q.options = 'text', []
+        schema = answer_schema(self.q)
+        self.assertEqual(schema['properties']['answer_ids']['maxItems'], 0)
+        self.assertNotIn('enum', schema['properties']['text_answer'])
+
+    def test_reproduced_empty_ids_get_one_format_repair(self):
+        client = self.client([answer([], text_answer='5'), answer([2])])
+        result = client.solve(self.q, threading.Event())
+        self.assertEqual(result['answer_ids'], [2])
+        self.assertEqual(len(client.calls), 2)
+        self.assertEqual(client.calls[1]['messages'][-2]['role'], 'assistant')
+        self.assertFalse(client.calls[0]['think'])
+
+    def test_invalid_repair_stops_after_two_calls(self):
+        client = self.client([answer([], text_answer='5'), answer([8])])
+        with self.assertRaises(SolverError):
+            client.solve(self.q, threading.Event())
+        self.assertEqual(len(client.calls), 2)
+
+    def test_uncertain_response_is_not_retried(self):
+        client = self.client([answer(confidence=0.3)])
+        with self.assertRaises(SolverError):
+            client.solve(self.q, threading.Event())
+        self.assertEqual(len(client.calls), 1)
+
+    def test_cancel_before_repair(self):
+        stop = threading.Event()
+        client = self.client([answer([], text_answer='5')], stop)
+        with self.assertRaises(Cancelled):
+            client.solve(self.q, stop)
+        self.assertEqual(len(client.calls), 1)
+
+
+class VisionRoutingTests(unittest.TestCase):
+    def setUp(self):
+        self.client = Ollama(Settings())
+        self.stop = threading.Event()
+
+    def test_text_model_routes_to_installed_vision_model(self):
+        def respond(path, body=None, *args, **kwargs):
+            if path == '/api/tags':
+                return {'models': [{'name': 'qwen3:1.7b'}, {'name': 'qwen3-vl:2b'}]}
+            return {'capabilities': ['vision'] if body['model'] == 'qwen3-vl:2b' else ['completion']}
+        with patch.object(self.client, 'request', side_effect=respond):
+            routed = self.client.for_image(self.stop)
+        self.assertEqual(routed.settings.model, 'qwen3-vl:2b')
+        self.assertEqual(routed.settings.timeout, 420)
+        self.assertEqual(self.client.settings.model, 'qwen3:1.7b')
+
+    def test_selected_vision_model_is_preserved(self):
+        with patch.object(self.client, 'request', return_value={'capabilities': ['vision']}):
+            routed = self.client.for_image(self.stop)
+        self.assertEqual(routed.settings.model, self.client.settings.model)
+
+    def test_missing_vision_model_gives_install_command(self):
+        with patch.object(self.client, 'request', side_effect=[{'capabilities': ['completion']}, {'models': []}]):
+            with self.assertRaisesRegex(SolverError, 'ollama pull qwen3-vl:2b'):
+                self.client.for_image(self.stop)
+
+    def test_wrong_fallback_does_not_send_image(self):
+        with patch.object(self.client, 'request', side_effect=[
+            {'capabilities': ['completion']}, {'models': [{'name': 'qwen3-vl:2b'}]}, {'capabilities': ['completion']}
+        ]):
+            with self.assertRaisesRegex(SolverError, 'не поддерживает изображения'):
+                self.client.for_image(self.stop)
 
 if __name__ == "__main__":
     unittest.main()

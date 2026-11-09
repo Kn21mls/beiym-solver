@@ -22,7 +22,11 @@ class Browser:
         self.page = None
 
     def open(self):
-        from playwright.sync_api import sync_playwright
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError as exc:
+            raise SolverError("Не удалось загрузить библиотеку браузера. Закройте решатель, "
+                              "запустите Install.cmd, затем Start.cmd. Требуется Python 3.14.") from exc
         if self.context:
             pages = [p for p in self.context.pages if not p.is_closed()]
             if not pages:
@@ -134,7 +138,35 @@ class Browser:
             raise SolverError("Не удалось открыть упражнение карусели.")
 
     def image(self, question):
-        return base64.b64encode(self.page.locator(question.root).screenshot()).decode()
+        root = self.page.locator(question.root)
+        root.scroll_into_view_if_needed()
+        try:
+            self.page.wait_for_function(
+                "selector => [...document.querySelector(selector).querySelectorAll('img')].every(e => e.complete && e.naturalWidth > 0)",
+                arg=question.root, timeout=10000)
+        except Exception as exc:
+            raise SolverError("Изображение задания ещё не загрузилось. Проверьте соединение с Beyim.") from exc
+        if self.read().fingerprint != question.fingerprint:
+            raise SolverError("Задание изменилось до чтения изображения. Запустите решение заново.")
+        raw = base64.b64encode(root.screenshot()).decode()
+        result = self.page.evaluate("""async raw => {
+            const image = new Image();
+            image.src = 'data:image/png;base64,' + raw;
+            await image.decode();
+            const ratio = Math.min(1, 1400 / Math.max(image.width, image.height));
+            if (ratio < 0.5) return null;
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(image.width * ratio);
+            canvas.height = Math.round(image.height * ratio);
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+        }""", raw)
+        if not result:
+            raise SolverError("Блок рисунка слишком большой. Укажите более узкий root во вкладке распознавания.")
+        return result
 
     def apply(self, question, answer, stop):
         checkpoint(stop)
@@ -258,13 +290,15 @@ class Runner:
         for i, option in enumerate(q.options, 1):
             self.log(f"  {i}. {option['text']}")
         image = None
+        client = self.client
         if q.has_image:
-            info = self.client.request("/api/show", {"model": self.settings.model}, self.stop)
-            if "vision" not in info.get("capabilities", []):
-                raise SolverError("Вопрос содержит рисунок. Нужна vision-модель Ollama; qwen3:4b работает с текстом.")
+            client = self.client.for_image(self.stop)
+            self.log("Читаю изображение задания…")
             image = self.browser.image(q)
-        self.log("Ollama решает задание…")
-        answer = self.client.solve(q, self.stop, image=image)
+        from .cloud import selected_model
+        settings = getattr(client, 'settings', self.settings)
+        self.log(f'{settings.provider.title()} решает задание ({selected_model(settings)})…')
+        answer = client.solve(q, self.stop, image=image)
         self.log("Ответ: " + (str(answer["answer_ids"]) if q.options else answer["text_answer"]))
         self.log(answer["explanation"])
         return q, answer

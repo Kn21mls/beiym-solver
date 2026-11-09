@@ -1,24 +1,38 @@
 from __future__ import annotations
 
 import queue
+import logging
+from logging.handlers import RotatingFileHandler
 import threading
+import time
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
 from .browser import Browser, Runner
-from .core import Ollama, Settings, SolverError, ROOT
+from .cloud import create_client, selected_model
+from .core import Ollama, Settings, SolverError, Cancelled, ROOT, Question
 
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Beyim Solver — Ollama")
-        self.geometry("960x760")
+        self.title("Beyim Solver — Groq / Ollama")
+        self.geometry("960x820")
         self.minsize(800, 640)
         self.configure(background="#f4f6f8")
         self.events, self.commands = queue.Queue(), queue.Queue()
         self.stop, self.shutdown = threading.Event(), threading.Event()
         self.busy = False
+        self.started_at = 0.0
+        self.phase = ""
+        (ROOT / ".state").mkdir(exist_ok=True)
+        self.diagnostics = logging.getLogger("beyim_solver.gui")
+        self.diagnostics.setLevel(logging.INFO)
+        if not self.diagnostics.handlers:
+            handler = RotatingFileHandler(ROOT / ".state" / "diagnostic.log", maxBytes=500_000,
+                                          backupCount=1, encoding="utf-8")
+            handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+            self.diagnostics.addHandler(handler)
         try:
             self.settings = Settings.load()
         except SolverError as exc:
@@ -43,27 +57,47 @@ class App(tk.Tk):
         frame = ttk.Frame(self, padding=24)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text="Beyim Solver", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(frame, text="Локальная модель Ollama · Автоматическое прохождение заданий").pack(anchor="w", pady=(4, 20))
+        ttk.Label(frame, text="Groq — облачное решение · Ollama — локальный режим").pack(anchor="w", pady=(4, 20))
         notebook = ttk.Notebook(frame)
         notebook.pack(fill="x")
         general = ttk.Frame(notebook, padding=16)
         advanced = ttk.Frame(notebook, padding=16)
+        local = ttk.Frame(notebook, padding=16)
         notebook.add(general, text=" Подключение ")
+        notebook.add(local, text=" Локальная Ollama ")
         notebook.add(advanced, text=" Распознавание страницы ")
         self.fields = {}
-        rows = [("url", "Адрес учебного кабинета"), ("ollama_url", "Сервер Ollama"),
-                ("model", "Модель"), ("max_questions", "Лимит заданий")]
+        rows = [("url", "Адрес учебного кабинета"), ("provider", "Сервис ИИ"),
+                ("groq_model", "Модель Groq"), ("max_questions", "Лимит заданий")]
         for i, (key, label) in enumerate(rows):
             ttk.Label(general, text=label).grid(row=i, column=0, sticky="w", padx=(0, 16), pady=5)
             var = tk.StringVar(value=str(getattr(self.settings, key)))
             self.fields[key] = var
-            if key == "model":
-                entry = ttk.Combobox(general, textvariable=var)
-                self.model_box = entry
+            if key == "provider":
+                entry = ttk.Combobox(general, textvariable=var, values=("groq", "ollama"), state="readonly")
+            elif key == "groq_model":
+                entry = self.groq_box = ttk.Combobox(general, textvariable=var)
             else:
                 entry = ttk.Entry(general, textvariable=var)
             entry.grid(row=i, column=1, sticky="ew", pady=5)
+        self.api_key = tk.StringVar()
+        ttk.Label(general, text="API-ключ Groq").grid(row=4, column=0, sticky="w")
+        ttk.Entry(general, textvariable=self.api_key, show="*").grid(row=4, column=1, sticky="ew", pady=5)
+        ttk.Label(general, text="Ключ хранится только до закрытия программы. Можно задать GROQ_API_KEY.",
+                  wraplength=740).grid(row=5, column=0, columnspan=2, sticky="w")
+        ttk.Label(general, text="В режиме Groq вопрос и снимок задания отправляются в облако Groq.",
+                  wraplength=740).grid(row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
         general.columnconfigure(1, weight=1)
+        for i, (key, label) in enumerate([("ollama_url", "Сервер Ollama"),
+                                        ("model", "Модель для текста"), ("vision_model", "Модель для рисунков")]):
+            ttk.Label(local, text=label).grid(row=i, column=0, sticky="w", padx=(0, 16), pady=5)
+            var = tk.StringVar(value=str(getattr(self.settings, key)))
+            self.fields[key] = var
+            entry = ttk.Combobox(local, textvariable=var) if key != "ollama_url" else ttk.Entry(local, textvariable=var)
+            entry.grid(row=i, column=1, sticky="ew", pady=5)
+            if key == "model": self.model_box = entry
+            if key == "vision_model": self.vision_box = entry
+        local.columnconfigure(1, weight=1)
         ttk.Label(advanced, text="Пустые поля — автоматическое распознавание. CSS-селекторы сохраняются локально.",
                   wraplength=760).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
         self.selectors = {}
@@ -79,7 +113,7 @@ class App(tk.Tk):
         toolbar = ttk.Frame(frame)
         toolbar.pack(fill="x", pady=(16, 8))
         self.buttons = []
-        for label, command in [("Проверить Ollama", "check"), ("Открыть Beyim", "open"),
+        for label, command in [("Проверить ИИ", "check"), ("Открыть Beyim", "open"),
                                ("Прочитать вопрос", "read"), ("Только решение", "solve")]:
             button = ttk.Button(toolbar, text=label, command=lambda c=command: self.dispatch(c))
             button.pack(side="left", padx=(0, 8))
@@ -87,13 +121,14 @@ class App(tk.Tk):
         actions = ttk.Frame(frame)
         actions.pack(fill="x", pady=(0, 12))
         for label, command, appearance in [("Автопрохождение", "auto", "Primary.TButton"),
-                                            ("Отправить один ответ", "step", "TButton")]:
+                                            ("Отправить один ответ", "step", "TButton"),
+                                            ("Тест ИИ", "test", "TButton")]:
             button = ttk.Button(actions, text=label, style=appearance, command=lambda c=command: self.dispatch(c))
             button.pack(side="left", padx=(0, 8))
             self.buttons.append(button)
         self.stop_button = ttk.Button(actions, text="Остановить", style="Stop.TButton", command=self.cancel, state="disabled")
         self.stop_button.pack(side="right")
-        self.status = tk.StringVar(value="Проверьте Ollama, затем откройте Beyim и войдите в аккаунт.")
+        self.status = tk.StringVar(value="Проверьте ИИ, затем откройте Beyim и войдите в аккаунт.")
         ttk.Label(frame, textvariable=self.status, wraplength=850).pack(anchor="w", pady=(0, 8))
         self.output = scrolledtext.ScrolledText(frame, wrap="word", font=("Segoe UI", 11),
                                               background="white", foreground="#202b36", relief="flat", padx=12, pady=12,
@@ -104,16 +139,21 @@ class App(tk.Tk):
 
     def log(self, text):
         self.events.put(("log", str(text)))
+        if str(text).startswith(("Ollama решает", "Читаю изображение", "В задании есть рисунок", "Модель вернула неверный", "Освобождаю память", "Groq решает", "Лимит Groq")):
+            self.events.put(("phase", str(text)))
 
     def read_settings(self):
         from dataclasses import replace
         try:
-            new = replace(self.settings, url=self.fields["url"].get().strip(),
+            new = replace(self.settings, provider=self.fields["provider"].get(),
+                          groq_model=self.fields["groq_model"].get().strip(), url=self.fields["url"].get().strip(),
                           ollama_url=self.fields["ollama_url"].get().strip(), model=self.fields["model"].get().strip(),
+                          vision_model=self.fields["vision_model"].get().strip(),
                           max_questions=int(self.fields["max_questions"].get()),
                           selectors={k: v.get().strip() for k, v in self.selectors.items()})
             new.validate()
-            Ollama(new)
+            if new.provider == "ollama":
+                Ollama(new)
             new.save()
             self.settings = new
             return new
@@ -130,15 +170,18 @@ class App(tk.Tk):
             return
         self.stop.clear()
         self.busy = True
+        self.started_at = time.monotonic()
+        self.phase = "Выполняется"
         for button in self.buttons:
             button.configure(state="disabled")
         self.stop_button.configure(state="normal")
         self.status.set("Выполняется…")
-        self.commands.put((command, settings))
+        self.commands.put((command, settings, self.api_key.get().strip()))
 
     def cancel(self):
         if self.busy:
             self.stop.set()
+            self.phase = "Останавливаю"
             self.status.set("Останавливаю. Новые действия не будут начаты…")
 
     def worker(self):
@@ -147,7 +190,7 @@ class App(tk.Tk):
         try:
             while not self.shutdown.is_set():
                 try:
-                    command, settings = self.commands.get(timeout=0.1)
+                    command, settings, api_key = self.commands.get(timeout=0.1)
                 except queue.Empty:
                     if browser and browser.page and not browser.page.is_closed():
                         try:
@@ -157,13 +200,24 @@ class App(tk.Tk):
                             browser = None
                     continue
                 try:
-                    client = Ollama(settings)
+                    self.diagnostics.info("Command: %s", command)
+                    client = create_client(settings, self.log, api_key) if command in ("check", "solve", "auto", "step", "test") else None
                     if command == "check":
                         models = client.models(self.stop)
-                        self.events.put(("models", models))
-                        self.log("Ollama доступна. Модели: " + (", ".join(models) or "список пуст"))
-                        if settings.model not in models:
-                            raise SolverError(f"Модель {settings.model} не установлена. В PowerShell: ollama pull {settings.model}")
+                        self.events.put(("models", (settings.provider, models)))
+                        self.log(settings.provider + " доступен. Модели: " + (", ".join(models) or "список пуст"))
+                        if selected_model(settings) not in models:
+                            raise SolverError(f"Модель {selected_model(settings)} недоступна. Выберите модель из списка сервиса.")
+                        if settings.provider == "ollama" and settings.vision_model and settings.vision_model not in models:
+                            self.log(f"Рисунки пока недоступны. Установите: ollama pull {settings.vision_model}")
+                    elif command == "test":
+                        question = Question("Реши уравнение 3x + 7 = 22. Чему равен x?",
+                                            [{"text": "3"}, {"text": "5"}, {"text": "7"}], "single")
+                        started = time.monotonic()
+                        answer = client.solve(question, self.stop)
+                        if answer["answer_ids"] != [2]:
+                            raise SolverError("Модель ошиблась в контрольном примере. Проверьте настройки модели.")
+                        self.log(f"Тест ИИ пройден за {time.monotonic() - started:.1f} с: x = 5. Ответ в Beyim не отправлялся.")
                     else:
                         if browser and (not browser.context or not browser.context.pages):
                             browser.close()
@@ -182,8 +236,6 @@ class App(tk.Tk):
                                     self.log(f"  {i}. {option['text']}")
                                 self.log("Есть изображение: " + ("да" if q.has_image else "нет"))
                             else:
-                                if settings.model not in client.models(self.stop):
-                                    raise SolverError(f"Модель {settings.model} не найдена в Ollama.")
                                 runner = Runner(browser, client, settings, self.stop, self.log)
                                 runner.submitted = submitted
                                 if command == "solve":
@@ -191,7 +243,12 @@ class App(tk.Tk):
                                 else:
                                     runner.run(1 if command == "step" else settings.max_questions)
                     self.events.put(("done", "Готово."))
+                except Cancelled as exc:
+                    self.diagnostics.info("Command %s cancelled", command)
+                    self.log(str(exc))
+                    self.events.put(("done", "Остановлено по команде пользователя."))
                 except Exception as exc:
+                    self.diagnostics.exception("Command %s failed", command)
                     self.log(str(exc))
                     self.events.put(("done", "Остановлено: " + str(exc).splitlines()[0]))
         finally:
@@ -209,7 +266,14 @@ class App(tk.Tk):
                     self.output.see("end")
                     self.output.configure(state="disabled")
                 elif kind == "models":
-                    self.model_box.configure(values=data)
+                    provider, models = data
+                    if provider == "groq":
+                        self.groq_box.configure(values=models)
+                    else:
+                        self.model_box.configure(values=models)
+                        self.vision_box.configure(values=models)
+                elif kind == "phase":
+                    self.phase = data
                 elif kind == "done":
                     self.busy = False
                     self.status.set(data)
@@ -221,6 +285,9 @@ class App(tk.Tk):
                     return
         except queue.Empty:
             pass
+        if self.busy:
+            elapsed = int(time.monotonic() - self.started_at)
+            self.status.set(f"{self.phase} · {elapsed} с. Ожидание модели не означает зависание.")
         self.after(100, self.poll)
 
     def close(self):
