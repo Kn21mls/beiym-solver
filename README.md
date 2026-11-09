@@ -29,6 +29,8 @@
 
    Скрипт создаёт `.venv`, ставит зависимости и скачивает Chromium для Playwright (около 150 МБ).
 
+Версия для macOS находится в ветке `mac` (запуск через `Install.command` и `Start.command`).
+
 ## Запуск с OpenRouter (по умолчанию)
 
 1. Создайте API-ключ в [OpenRouter](https://openrouter.ai/keys) и при необходимости пополните баланс.
