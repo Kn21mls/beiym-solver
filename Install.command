@@ -10,6 +10,9 @@ fail() {
 
 PYTHON="${PYTHON:-python3}"
 command -v "$PYTHON" >/dev/null 2>&1 || fail "Python 3 не найден. Установите Python 3.14 с https://www.python.org/downloads/macos/"
+echo "Использую $("$PYTHON" --version 2>&1)"
+"$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' \
+  || fail "Нужен Python 3.10 или новее (рекомендуется 3.14)."
 
 "$PYTHON" -m venv .venv || fail "не удалось создать окружение .venv"
 ./.venv/bin/python -m pip install --upgrade pip || fail "не удалось обновить pip"
