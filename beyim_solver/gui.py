@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import queue
 import logging
 from logging.handlers import RotatingFileHandler
@@ -12,11 +13,14 @@ from .browser import Browser, Runner
 from .cloud import create_client, selected_model
 from .core import Ollama, Settings, SolverError, Cancelled, ROOT, Question
 
+UI_FONT = "Segoe UI" if os.name == "nt" else "Helvetica Neue"
+UI_FONT_TITLE = "Segoe UI Semibold" if os.name == "nt" else "Helvetica Neue"
+
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Beyim Solver — Groq / Ollama")
+        self.title("Beyim Solver — OpenRouter / Groq / Ollama")
         self.geometry("960x820")
         self.minsize(800, 640)
         self.configure(background="#f4f6f8")
@@ -46,18 +50,18 @@ class App(tk.Tk):
     def build(self):
         style = ttk.Style(self)
         style.theme_use("clam")
-        style.configure(".", font=("Segoe UI", 11))
+        style.configure(".", font=(UI_FONT, 11))
         style.configure("TFrame", background="#f4f6f8")
         style.configure("TLabel", background="#f4f6f8", foreground="#202b36")
         style.configure("TButton", padding=(12, 10))
-        style.configure("Title.TLabel", font=("Segoe UI Semibold", 23))
+        style.configure("Title.TLabel", font=(UI_FONT_TITLE, 23))
         style.configure("Primary.TButton", background="#145d77", foreground="white")
         style.map("Primary.TButton", background=[("active", "#10485d"), ("disabled", "#657681")])
         style.configure("Stop.TButton", foreground="#9c2525")
         frame = ttk.Frame(self, padding=24)
         frame.pack(fill="both", expand=True)
         ttk.Label(frame, text="Beyim Solver", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(frame, text="Groq — облачное решение · Ollama — локальный режим").pack(anchor="w", pady=(4, 20))
+        ttk.Label(frame, text="OpenRouter / Groq — облачное решение · Ollama — локальный режим").pack(anchor="w", pady=(4, 20))
         notebook = ttk.Notebook(frame)
         notebook.pack(fill="x")
         general = ttk.Frame(notebook, padding=16)
@@ -68,25 +72,28 @@ class App(tk.Tk):
         notebook.add(advanced, text=" Распознавание страницы ")
         self.fields = {}
         rows = [("url", "Адрес учебного кабинета"), ("provider", "Сервис ИИ"),
-                ("groq_model", "Модель Groq"), ("max_questions", "Лимит заданий")]
+                ("openrouter_model", "Модель OpenRouter"), ("groq_model", "Модель Groq"),
+                ("max_questions", "Лимит заданий")]
         for i, (key, label) in enumerate(rows):
             ttk.Label(general, text=label).grid(row=i, column=0, sticky="w", padx=(0, 16), pady=5)
             var = tk.StringVar(value=str(getattr(self.settings, key)))
             self.fields[key] = var
             if key == "provider":
-                entry = ttk.Combobox(general, textvariable=var, values=("groq", "ollama"), state="readonly")
+                entry = ttk.Combobox(general, textvariable=var, values=("openrouter", "groq", "ollama"), state="readonly")
+            elif key == "openrouter_model":
+                entry = self.openrouter_box = ttk.Combobox(general, textvariable=var)
             elif key == "groq_model":
                 entry = self.groq_box = ttk.Combobox(general, textvariable=var)
             else:
                 entry = ttk.Entry(general, textvariable=var)
             entry.grid(row=i, column=1, sticky="ew", pady=5)
         self.api_key = tk.StringVar()
-        ttk.Label(general, text="API-ключ Groq").grid(row=4, column=0, sticky="w")
-        ttk.Entry(general, textvariable=self.api_key, show="*").grid(row=4, column=1, sticky="ew", pady=5)
-        ttk.Label(general, text="Ключ хранится только до закрытия программы. Можно задать GROQ_API_KEY.",
-                  wraplength=740).grid(row=5, column=0, columnspan=2, sticky="w")
-        ttk.Label(general, text="В режиме Groq вопрос и снимок задания отправляются в облако Groq.",
-                  wraplength=740).grid(row=6, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        ttk.Label(general, text="API-ключ Groq / OpenRouter").grid(row=5, column=0, sticky="w")
+        ttk.Entry(general, textvariable=self.api_key, show="*").grid(row=5, column=1, sticky="ew", pady=5)
+        ttk.Label(general, text="Ключ хранится только до закрытия программы. Можно задать OPENROUTER_API_KEY или GROQ_API_KEY.",
+                  wraplength=740).grid(row=6, column=0, columnspan=2, sticky="w")
+        ttk.Label(general, text="В облачном режиме вопрос и снимок задания отправляются по HTTPS в выбранный сервис.",
+                  wraplength=740).grid(row=7, column=0, columnspan=2, sticky="w", pady=(6, 0))
         general.columnconfigure(1, weight=1)
         for i, (key, label) in enumerate([("ollama_url", "Сервер Ollama"),
                                         ("model", "Модель для текста"), ("vision_model", "Модель для рисунков")]):
@@ -130,7 +137,7 @@ class App(tk.Tk):
         self.stop_button.pack(side="right")
         self.status = tk.StringVar(value="Проверьте ИИ, затем откройте Beyim и войдите в аккаунт.")
         ttk.Label(frame, textvariable=self.status, wraplength=850).pack(anchor="w", pady=(0, 8))
-        self.output = scrolledtext.ScrolledText(frame, wrap="word", font=("Segoe UI", 11),
+        self.output = scrolledtext.ScrolledText(frame, wrap="word", font=(UI_FONT, 11),
                                               background="white", foreground="#202b36", relief="flat", padx=12, pady=12,
                                               height=10, state="disabled")
         self.output.pack(fill="both", expand=True)
@@ -139,14 +146,16 @@ class App(tk.Tk):
 
     def log(self, text):
         self.events.put(("log", str(text)))
-        if str(text).startswith(("Ollama решает", "Читаю изображение", "В задании есть рисунок", "Модель вернула неверный", "Освобождаю память", "Groq решает", "Лимит Groq")):
+        if str(text).startswith(("Ollama решает", "Читаю изображение", "В задании есть рисунок", "Модель вернула неверный", "Освобождаю память", "OpenRouter решает", "Лимит OpenRouter", "Groq решает", "Лимит Groq")):
             self.events.put(("phase", str(text)))
 
     def read_settings(self):
         from dataclasses import replace
         try:
             new = replace(self.settings, provider=self.fields["provider"].get(),
-                          groq_model=self.fields["groq_model"].get().strip(), url=self.fields["url"].get().strip(),
+                          groq_model=self.fields["groq_model"].get().strip(),
+                          openrouter_model=self.fields["openrouter_model"].get().strip(),
+                          url=self.fields["url"].get().strip(),
                           ollama_url=self.fields["ollama_url"].get().strip(), model=self.fields["model"].get().strip(),
                           vision_model=self.fields["vision_model"].get().strip(),
                           max_questions=int(self.fields["max_questions"].get()),
@@ -205,7 +214,7 @@ class App(tk.Tk):
                     if command == "check":
                         models = client.models(self.stop)
                         self.events.put(("models", (settings.provider, models)))
-                        self.log(settings.provider + " доступен. Модели: " + (", ".join(models) or "список пуст"))
+                        self.log(f"{settings.provider} доступен. Моделей: {len(models)}. Выбрана: {selected_model(settings)}.")
                         if selected_model(settings) not in models:
                             raise SolverError(f"Модель {selected_model(settings)} недоступна. Выберите модель из списка сервиса.")
                         if settings.provider == "ollama" and settings.vision_model and settings.vision_model not in models:
@@ -269,6 +278,8 @@ class App(tk.Tk):
                     provider, models = data
                     if provider == "groq":
                         self.groq_box.configure(values=models)
+                    elif provider == "openrouter":
+                        self.openrouter_box.configure(values=models)
                     else:
                         self.model_box.configure(values=models)
                         self.vision_box.configure(values=models)

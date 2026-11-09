@@ -1,13 +1,14 @@
 import copy
 import http.client
 import json
+import os
 import threading
 import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
-from beyim_solver.cloud import Groq, RateLimited, create_client, _cache
+from beyim_solver.cloud import Groq, OpenRouter, RateLimited, create_client, selected_model, _cache
 from beyim_solver.core import Settings, Question, SolverError, Cancelled, ROOT
 
 
@@ -161,7 +162,7 @@ class CloudTransportTests(unittest.TestCase):
                 if self.page.url != 'about:blank': raise AssertionError('External navigation')
         settings = Settings(transition_timeout=2)
         with sync_playwright() as pw:
-            engine = pw.chromium.launch(channel='msedge', headless=True)
+            engine = pw.chromium.launch(channel='msedge' if os.name == 'nt' else None, headless=True)
             try:
                 page = engine.new_page()
                 browser = LocalBrowser(settings, lambda _: None)
@@ -176,3 +177,98 @@ class CloudTransportTests(unittest.TestCase):
                 self.assertEqual(page.evaluate('window.submitted'), 1)
                 self.assertTrue(self.calls[-1][2]['messages'][1]['content'][1]['image_url']['url'].startswith('data:image/jpeg;base64,'))
             finally: engine.close()
+
+
+class _FakeResponse:
+    def __init__(self, payload, status=200):
+        self._raw = json.dumps(payload).encode()
+        self.status = status
+
+    def read(self, _size=-1):
+        return self._raw
+
+    def getheader(self, _name, default=None):
+        return default
+
+
+class _FakeConnection:
+    calls = []
+    status = 200
+    payload = {'data': [{'id': 'qwen/qwen3.8-27b'}]}
+
+    def __init__(self, host, timeout):
+        self.host = host
+        self.sock = None
+
+    def request(self, method, path, body, headers):
+        type(self).calls.append((self.host, method, path, headers))
+
+    def getresponse(self):
+        return _FakeResponse(type(self).payload, type(self).status)
+
+    def close(self):
+        pass
+
+
+class OpenRouterTests(unittest.TestCase):
+    def setUp(self):
+        _cache.clear()
+        self.settings = Settings(provider='openrouter', openrouter_model='qwen/qwen3.8-27b')
+        self.client = OpenRouter(self.settings, api_key='fake-test-key')
+        self.q = Question('2+2?', [{'text': '3'}, {'text': '4'}], 'single')
+        self.stop = threading.Event()
+
+    def test_create_client_and_selected_model(self):
+        with patch.dict('os.environ', {'OPENROUTER_API_KEY': 'env-key'}, clear=True):
+            client = create_client(self.settings)
+        self.assertIsInstance(client, OpenRouter)
+        self.assertEqual(selected_model(self.settings), 'qwen/qwen3.8-27b')
+        self.assertEqual(selected_model(Settings(provider='groq', groq_model='g')), 'g')
+        self.assertEqual(selected_model(Settings(provider='ollama', model='m')), 'm')
+
+    def test_missing_key(self):
+        with patch.dict('os.environ', {}, clear=True), self.assertRaisesRegex(SolverError, 'API-ключ'):
+            OpenRouter(self.settings)
+
+    def test_transport_uses_openrouter_origin_and_attribution(self):
+        _FakeConnection.calls.clear()
+        with patch('beyim_solver.cloud.http.client.HTTPSConnection', _FakeConnection):
+            self.assertEqual(self.client.models(), ['qwen/qwen3.8-27b'])
+        host, method, path, headers = _FakeConnection.calls[0]
+        self.assertEqual(host, 'openrouter.ai')
+        self.assertEqual(method, 'GET')
+        self.assertEqual(path, '/api/v1/models')
+        self.assertEqual(headers['Authorization'], 'Bearer fake-test-key')
+        self.assertEqual(headers['X-Title'], 'Beyim Solver')
+
+    def test_payment_required_explains_credits(self):
+        _FakeConnection.calls.clear()
+        _FakeConnection.status = 402
+        self.addCleanup(setattr, _FakeConnection, 'status', 200)
+        with patch('beyim_solver.cloud.http.client.HTTPSConnection', _FakeConnection):
+            with self.assertRaisesRegex(SolverError, 'недостаточно кредитов'):
+                self.client.models()
+
+    def test_solve_uses_openrouter_model_and_sends_images(self):
+        bodies = []
+
+        def request(path, body, *args):
+            bodies.append(copy.deepcopy(body))
+            return result()
+
+        with patch.object(self.client, 'request', side_effect=request):
+            self.client.solve(self.q, self.stop)
+            self.client.solve(self.q, self.stop, 'image-one')
+        self.assertEqual(bodies[0]['model'], 'qwen/qwen3.8-27b')
+        self.assertNotIn('reasoning_effort', bodies[0])
+        self.assertEqual(len(bodies[0]['messages'][1]['content']), 1)
+        self.assertEqual(bodies[1]['messages'][1]['content'][1]['image_url']['url'],
+                         'data:image/jpeg;base64,image-one')
+
+    def test_thinking_requests_high_reasoning(self):
+        self.settings.thinking = True
+        bodies = []
+        with patch.object(self.client, 'request',
+                          side_effect=lambda path, body, *a: bodies.append(body) or result()):
+            self.client.solve(self.q, self.stop)
+        self.assertEqual(bodies[0]['reasoning'], {'effort': 'high'})

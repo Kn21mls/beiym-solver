@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import threading
 import sys
 import subprocess
@@ -13,15 +14,16 @@ from beyim_solver.core import Question, Settings, SolverError
 
 def main():
     # Double-clicking main.py may otherwise use the system's unrelated Python.
-    interpreter = Path(__file__).resolve().parent / '.venv' / 'Scripts' / 'python.exe'
+    scripts, exe = ('Scripts', 'python.exe') if os.name == 'nt' else ('bin', 'python')
+    interpreter = Path(__file__).resolve().parent / '.venv' / scripts / exe
     if interpreter.exists() and Path(sys.executable).resolve() != interpreter.resolve():
         raise SystemExit(subprocess.call([str(interpreter), str(Path(__file__).resolve()), *sys.argv[1:]]))
-    parser = argparse.ArgumentParser(description="Beyim Solver — Groq / Ollama")
+    parser = argparse.ArgumentParser(description="Beyim Solver — OpenRouter / Groq / Ollama")
     parser.add_argument("--doctor", action="store_true", help="Проверить выбранный сервис и список моделей")
     parser.add_argument("--smoke-test", action="store_true", help="Проверить решение простого уравнения реальной моделью")
     parser.add_argument("--vision-smoke-test", action="store_true", help="Проверить полный цикл на локальном задании с рисунком")
-    parser.add_argument("--full-smoke-test", action="store_true", help="Текст → рисунок → текст и освобождение памяти")
-    parser.add_argument("--provider", choices=("groq", "ollama"), help="Сервис для проверки без изменения config.json")
+    parser.add_argument("--full-smoke-test", action="store_true", help="Текст -> рисунок -> текст и освобождение памяти")
+    parser.add_argument("--provider", choices=("openrouter", "groq", "ollama"), help="Сервис для проверки без изменения config.json")
     args = parser.parse_args()
     if args.vision_smoke_test or args.full_smoke_test:
         from beyim_solver.verification import check_vision
@@ -42,7 +44,11 @@ def main():
         client = create_client(settings)
         models = client.models()
         print("Сервис:", settings.provider)
-        print("Модели:", ", ".join(models))
+        if len(models) <= 50:
+            print("Модели:", ", ".join(models))
+        else:
+            print(f"Моделей: {len(models)}. Полный список доступен в окне приложения.")
+        print("Выбрана:", selected_model(settings))
         if selected_model(settings) not in models:
             raise SolverError(f"Модель {selected_model(settings)} недоступна для выбранного сервиса.")
         if args.smoke_test:

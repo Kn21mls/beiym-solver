@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import re
 import time
 from pathlib import Path
@@ -25,8 +26,10 @@ class Browser:
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as exc:
-            raise SolverError("Не удалось загрузить библиотеку браузера. Закройте решатель, "
-                              "запустите Install.cmd, затем Start.cmd. Требуется Python 3.14.") from exc
+            installer, starter = (("Install.cmd", "Start.cmd") if os.name == "nt"
+                                  else ("Install.command", "Start.command"))
+            raise SolverError(f"Не удалось загрузить библиотеку браузера. Закройте решатель, "
+                              f"запустите {installer}, затем {starter}. Требуется Python 3.14.") from exc
         if self.context:
             pages = [p for p in self.context.pages if not p.is_closed()]
             if not pages:
@@ -297,7 +300,8 @@ class Runner:
             image = self.browser.image(q)
         from .cloud import selected_model
         settings = getattr(client, 'settings', self.settings)
-        self.log(f'{settings.provider.title()} решает задание ({selected_model(settings)})…')
+        label = getattr(client, 'label', '') or settings.provider.title()
+        self.log(f'{label} решает задание ({selected_model(settings)})…')
         answer = client.solve(q, self.stop, image=image)
         self.log("Ответ: " + (str(answer["answer_ids"]) if q.options else answer["text_answer"]))
         self.log(answer["explanation"])

@@ -21,6 +21,7 @@
   },
   "num_ctx": 4096,
   "num_predict": 768,
-  "provider": "groq",
-  "groq_model": "qwen/qwen3.8-27b"
+  "provider": "openrouter",
+  "groq_model": "qwen/qwen3.8-27b",
+  "openrouter_model": "qwen/qwen3.8-27b"
 }

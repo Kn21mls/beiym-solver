@@ -4,6 +4,7 @@ import hashlib
 import copy
 import http.client
 import json
+import os
 import queue
 import socket
 import threading
@@ -34,8 +35,9 @@ def checkpoint(stop):
 
 @dataclass
 class Settings:
-    provider: str = "groq"
+    provider: str = "openrouter"
     groq_model: str = "qwen/qwen3.8-27b"
+    openrouter_model: str = "qwen/qwen3.8-27b"
     url: str = "https://beyim.ai/ru/ai/feed"
     ollama_url: str = "http://127.0.0.1:11434"
     model: str = "qwen3:1.7b"
@@ -43,7 +45,7 @@ class Settings:
     num_ctx: int = 4096
     num_predict: int = 768
     vision_timeout: float = 420
-    browser: str = "msedge"
+    browser: str = "msedge" if os.name == "nt" else ""
     max_questions: int = 30
     min_confidence: float = 0.8
     timeout: float = 180
@@ -64,8 +66,12 @@ class Settings:
             raise SolverError(f"Ошибка config.json: {exc}") from exc
 
     def validate(self):
-        if self.provider not in ("groq", "ollama") or not self.groq_model.strip():
-            raise SolverError("Выберите groq или ollama и укажите модель Groq.")
+        if self.provider not in ("groq", "openrouter", "ollama"):
+            raise SolverError("Выберите groq, openrouter или ollama.")
+        if self.provider == "groq" and not self.groq_model.strip():
+            raise SolverError("Укажите модель Groq.")
+        if self.provider == "openrouter" and not self.openrouter_model.strip():
+            raise SolverError("Укажите модель OpenRouter.")
         if type(self.num_ctx) is not int or not 2048 <= self.num_ctx <= 4096:
             raise SolverError("Контекст для режима 8 ГБ: 2048–4096 токенов.")
         if type(self.num_predict) is not int or not 256 <= self.num_predict <= 1024:

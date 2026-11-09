@@ -1,4 +1,5 @@
 import threading
+import os
 import unittest
 from pathlib import Path
 
@@ -31,7 +32,7 @@ class BrowserTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pw = sync_playwright().start()
-        cls.engine = cls.pw.chromium.launch(channel="msedge", headless=True)
+        cls.engine = cls.pw.chromium.launch(channel="msedge" if os.name == "nt" else None, headless=True)
 
     @classmethod
     def tearDownClass(cls):
