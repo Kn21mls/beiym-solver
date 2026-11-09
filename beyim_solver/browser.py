@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import os
 import re
+import sys
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -26,8 +27,12 @@ class Browser:
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as exc:
-            installer, starter = (("Install.cmd", "Start.cmd") if os.name == "nt"
-                                  else ("Install.command", "Start.command"))
+            if os.name == "nt":
+                installer, starter = "Install.cmd", "Start.cmd"
+            elif sys.platform == "darwin":
+                installer, starter = "Install.command", "Start.command"
+            else:
+                installer, starter = "Install.sh", "Start.sh"
             raise SolverError(f"Не удалось загрузить библиотеку браузера. Закройте решатель, "
                               f"запустите {installer}, затем {starter}. Требуется Python 3.14.") from exc
         if self.context:
