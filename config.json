@@ -1,0 +1,27 @@
+{
+  "provider": "openrouter",
+  "groq_model": "qwen/qwen3.8-27b",
+  "openrouter_model": "google/gemini-2.5-flash",
+  "url": "https://beyim.ai/ru/",
+  "ollama_url": "http://127.0.0.1:11434",
+  "model": "qwen3:1.7b",
+  "vision_model": "qwen3-vl:2b",
+  "num_ctx": 4096,
+  "num_predict": 768,
+  "vision_timeout": 420,
+  "browser": "msedge",
+  "max_questions": 30,
+  "min_confidence": 0.8,
+  "timeout": 180,
+  "thinking": false,
+  "transition_timeout": 15,
+  "selectors": {
+    "root": "",
+    "question": "",
+    "options": "",
+    "input": "",
+    "submit": "",
+    "next": "",
+    "complete": ""
+  }
+}
