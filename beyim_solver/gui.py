@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import queue
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 import threading
 import time
@@ -13,8 +14,12 @@ from .browser import Browser, Runner
 from .cloud import create_client, selected_model
 from .core import Ollama, Settings, SolverError, Cancelled, ROOT, Question
 
-UI_FONT = "Segoe UI" if os.name == "nt" else "Helvetica Neue"
-UI_FONT_TITLE = "Segoe UI Semibold" if os.name == "nt" else "Helvetica Neue"
+if os.name == "nt":
+    UI_FONT, UI_FONT_TITLE = "Segoe UI", "Segoe UI Semibold"
+elif sys.platform == "darwin":
+    UI_FONT, UI_FONT_TITLE = "Helvetica Neue", "Helvetica Neue"
+else:
+    UI_FONT, UI_FONT_TITLE = "DejaVu Sans", "DejaVu Sans"
 
 
 class App(tk.Tk):
