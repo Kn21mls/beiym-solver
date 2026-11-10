@@ -4,7 +4,7 @@
   "model": "qwen3:1.7b",
   "vision_model": "qwen3-vl:2b",
   "vision_timeout": 420,
-  "browser": "",
+  "browser": "msedge",
   "max_questions": 30,
   "min_confidence": 0.8,
   "timeout": 180,
