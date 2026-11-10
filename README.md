@@ -4,6 +4,17 @@
 
 Версия для macOS находится в ветке `mac` (запуск через `Install.command` и `Start.command`).
 
+## Расширение и API
+
+В каталоге `extension/` находится базовое Chrome-расширение, а в `server/` — FastAPI-бэкенд с BYOK: пользователь регистрируется в Beyim Solver, вручную создаёт ключ Groq в `console.groq.com/keys` и сохраняет его на сервере. Ключ шифруется, расширение обращается к `/v1/solve`. Groq не предоставляет API для автоматического создания ключей. Рисунки, недоступные для прямого чтения из-за cross-origin, расширение снимает с видимой области вкладки; для этого панель нужно открыть с активной вкладки Beyim.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r server\requirements.txt
+.\Start-api.cmd
+```
+
+Подробности: `server/README.md` и `extension/README.md`.
+
 ## Запуск с OpenRouter (по умолчанию)
 
 1. Создайте API-ключ в [OpenRouter](https://openrouter.ai/keys) и при необходимости пополните баланс. Программа не управляет биллингом и не может ограничить расходы аккаунта.

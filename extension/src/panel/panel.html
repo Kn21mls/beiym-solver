@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Beyim Solver</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <h1>Beyim Solver</h1>
+        <p id="status">Готов</p>
+      </div>
+      <span id="dot" class="dot"></span>
+    </header>
+
+    <nav class="tabs">
+      <button type="button" data-tab="solve" class="active">Решение</button>
+      <button type="button" data-tab="connect">Подключение</button>
+    </nav>
+
+    <main>
+      <section id="solve" class="tab active">
+        <div class="row">
+          <button type="button" id="start" class="primary">Начать</button>
+          <button type="button" id="stop" disabled>Стоп</button>
+          <button type="button" id="open-beyim">Открыть Beyim</button>
+        </div>
+        <div class="stats">
+          <span>Заданий: <b id="solved">0</b></span>
+          <span>Порог: <b id="threshold">80%</b></span>
+        </div>
+        <div id="log" class="log" aria-live="polite"></div>
+      </section>
+
+      <section id="connect" class="tab">
+        <h2>API</h2>
+        <label>Адрес API<input id="api-url" type="url" placeholder="http://127.0.0.1:8787" /></label>
+        <button type="button" id="save-api">Сохранить адрес</button>
+
+        <hr />
+        <h2>Аккаунт</h2>
+        <label>Email<input id="email" type="email" autocomplete="username" /></label>
+        <label>Пароль<input id="password" type="password" autocomplete="current-password" /></label>
+        <div class="row">
+          <button type="button" id="login" class="primary">Войти</button>
+          <button type="button" id="register">Регистрация</button>
+          <button type="button" id="logout">Выйти</button>
+        </div>
+        <p id="account" class="hint">Не выполнен вход.</p>
+
+        <hr />
+        <h2>Groq</h2>
+        <p class="hint">
+          Groq не создаёт ключи автоматически. Войдите в Groq Console, откройте API Keys и создайте ключ вручную.
+        </p>
+        <div class="row">
+          <button type="button" id="groq-open">Открыть Groq</button>
+          <button type="button" id="groq-disconnect">Отключить</button>
+        </div>
+        <label>API-ключ Groq<input id="groq-key" type="password" placeholder="gsk_..." autocomplete="off" /></label>
+        <button type="button" id="groq-save" class="primary">Сохранить ключ</button>
+        <p id="groq-status" class="hint">Ключ не подключён.</p>
+
+        <hr />
+        <h2>Параметры</h2>
+        <label>Модель Groq<input id="model" type="text" /></label>
+        <label>Максимум заданий<input id="max-questions" type="number" min="1" max="500" /></label>
+        <label>Минимальная уверенность<input id="min-confidence" type="number" min="0" max="1" step="0.05" /></label>
+        <label>Таймаут, сек<input id="timeout" type="number" min="10" max="180" /></label>
+        <label>Максимум токенов<input id="num-predict" type="number" min="64" max="4096" /></label>
+        <button type="button" id="save-settings" class="primary">Сохранить параметры</button>
+      </section>
+    </main>
+
+    <script src="panel.js"></script>
+  </body>
+</html>
