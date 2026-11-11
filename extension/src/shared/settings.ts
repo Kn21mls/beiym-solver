@@ -1,5 +1,6 @@
 import browser from 'webextension-polyfill';
 import type { Selectors, Settings } from './types';
+import { selectorProfile } from './page';
 
 export const SETTINGS_KEY = 'settings';
 
@@ -70,9 +71,18 @@ export function normalizeSettings(value: unknown): Settings {
   };
 }
 
-export async function loadSettings(): Promise<Settings> {
-  const stored = await browser.storage.local.get(SETTINGS_KEY);
-  return normalizeSettings(stored[SETTINGS_KEY]);
+export async function loadSettings(url?: string): Promise<Settings> {
+  const key = url ? selectorProfile(url) : null;
+  const stored = await browser.storage.local.get(key ? [SETTINGS_KEY, key] : SETTINGS_KEY);
+  const settings = normalizeSettings(stored[SETTINGS_KEY]);
+  if (key && stored[key]) return normalizeSettings({ ...settings, selectors: stored[key] });
+  return settings;
+}
+
+export async function savePageSelectors(url: string, selectors: Selectors): Promise<void> {
+  const key = selectorProfile(url);
+  if (Object.values(selectors).some(Boolean)) await browser.storage.local.set({ [key]: selectors });
+  else await browser.storage.local.remove(key);
 }
 
 export async function saveSettings(value: unknown): Promise<Settings> {

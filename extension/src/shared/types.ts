@@ -20,6 +20,7 @@ export interface Question {
   adapter: Adapter;
   submit_selector: string;
   carousel_selector: string;
+  revision?: string;
 }
 
 export interface Answer {

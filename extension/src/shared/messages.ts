@@ -5,6 +5,10 @@ export type ContentRequest =
   | { type: 'apply'; question: Question; answer: Answer }
   | { type: 'advance'; question: Question }
   | { type: 'prepare' }
+  | { type: 'beta-prepare'; operation: string }
+  | { type: 'beta-submit'; operation: string; question: Question; answer: Answer }
+  | { type: 'beta-select'; operation: string; question: Question; answer: Answer }
+  | { type: 'beta-cancel'; operation: string }
   | { type: 'complete' }
   | { type: 'image'; question: Question; max: number };
 

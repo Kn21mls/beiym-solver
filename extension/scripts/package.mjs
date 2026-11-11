@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
-const target = path.join(root, 'beyim-solver-chrome.zip');
+const beta = process.argv.includes('--beta');
+const testOrigin = beta && new URL(process.env.BEYIM_BETA_API).hostname.endsWith('.test');
+const variant = beta ? (testOrigin ? '-beta-test' : '-beta') : '';
+const target = path.join(root, 'beyim-solver-chrome' + variant + '.zip');
 
 try {
   await access(path.join(dist, 'manifest.json'));

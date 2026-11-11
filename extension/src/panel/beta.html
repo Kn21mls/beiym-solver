@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beyim Solver</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Beyim Solver</h1>
+      <p id="status" role="status" aria-atomic="true">Проверяем доступ…</p>
+    </header>
+
+    <form id="activation" hidden>
+      <label for="code">Код приглашения</label>
+      <input id="code" type="password" maxlength="128" autocomplete="off" spellcheck="false" required>
+      <button id="activate" class="primary">Активировать</button>
+    </form>
+
+    <section id="workspace" aria-label="Разбор задания" hidden>
+      <p id="welcome" hidden>Откройте упражнение и нажмите Beyim Solver в меню расширений Chrome. Иконку можно закрепить на панели браузера.</p>
+      <button id="open-beyim">Открыть Beyim</button>
+
+      <div id="disclosure" hidden>
+        <p>Для разбора текст, варианты и при необходимости снимок задания передаются через сервер проекта в Groq.</p>
+        <button id="accept" class="primary">Согласиться и продолжить</button>
+      </div>
+
+      <div id="actions" hidden>
+        <div class="actions">
+          <button id="analyse" class="primary">Разобрать задание</button>
+          <button id="stop" hidden>Остановить</button>
+        </div>
+        <section id="result" aria-label="Результат разбора" hidden>
+          <h2 id="question" tabindex="-1"></h2>
+          <p id="answer"></p>
+          <p id="explanation"></p>
+          <button id="submit" hidden>Отправить ответ</button>
+        </section>
+        <details>
+          <summary>Автопрохождение</summary>
+          <p>Расширение выбирает и отправляет ответы в упражнениях урока. Если Beyim не подтвердит ответ, прохождение остановится.</p>
+          <button id="auto">Начать автопрохождение</button>
+        </details>
+        <details id="recognition">
+          <summary>Настройки распознавания</summary>
+          <p>Если вопрос не распознался, задайте CSS-селекторы для открытого раздела Beyim. Пустые поля используют автоматический поиск.</p>
+          <form id="selectors">
+            <label for="selector-root">Блок одного вопроса</label>
+            <input id="selector-root" placeholder="[data-question]" spellcheck="false">
+            <label for="selector-question">Текст вопроса</label>
+            <input id="selector-question" placeholder=".question-text" spellcheck="false">
+            <label for="selector-options">Варианты ответа</label>
+            <input id="selector-options" placeholder="[role=radio]" spellcheck="false">
+            <label for="selector-input">Поле текстового ответа</label>
+            <input id="selector-input" placeholder="textarea" spellcheck="false">
+            <button>Сохранить для этого раздела</button>
+          </form>
+        </details>
+      </div>
+      <footer><button id="logout">Отключиться</button></footer>
+    </section>
+  </main>
+  <script src="panel.js"></script>
+</body>
+</html>

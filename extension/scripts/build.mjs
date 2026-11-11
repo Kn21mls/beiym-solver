@@ -1,25 +1,48 @@
 import { build, context } from 'esbuild';
-import { cp, mkdir, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'dist');
 const watch = process.argv.includes('--watch');
+const beta = process.argv.includes('--beta');
+let betaApi = '';
+if (beta) {
+  const configured = new URL(process.env.BEYIM_BETA_API ?? 'invalid');
+  if (configured.protocol !== 'https:' || configured.href !== configured.origin + '/') {
+    throw new Error('Set BEYIM_BETA_API to the HTTPS origin of the beta API.');
+  }
+  betaApi = configured.origin;
+}
 
 const entries = {
   background: path.join(root, 'src/background/index.ts'),
   content: path.join(root, 'src/content/index.ts'),
-  panel: path.join(root, 'src/panel/panel.ts'),
+  panel: path.join(root, beta ? 'src/panel/beta.ts' : 'src/panel/panel.ts'),
 };
 
 const staticFiles = [
-  ['manifest.json', 'manifest.json'],
-  ['src/panel/panel.html', 'panel.html'],
-  ['src/panel/panel.css', 'panel.css'],
+  [beta ? 'src/panel/beta.html' : 'src/panel/panel.html', 'panel.html'],
+  [beta ? 'src/panel/beta.css' : 'src/panel/panel.css', 'panel.css'],
 ];
 
 async function copyStatic() {
+  const manifestFile = path.join(root, 'manifest.json');
+  if (beta) {
+    const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
+    manifest.version = '0.2.0';
+    manifest.description = 'Разбор упражнений Beyim с объяснением и отправкой по подтверждению.';
+    manifest.minimum_chrome_version = '120';
+    manifest.permissions = ['activeTab', 'storage'];
+    manifest.host_permissions = [...manifest.content_scripts[0].matches, betaApi + '/*'];
+    manifest.icons = { 128: 'icon.png' };
+    manifest.action.default_icon = 'icon.png';
+    await cp(path.join(root, 'src/panel/icon.png'), path.join(out, 'icon.png'));
+    await writeFile(path.join(out, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+  } else {
+    await cp(manifestFile, path.join(out, 'manifest.json'));
+  }
   for (const [from, to] of staticFiles) {
     await cp(path.join(root, from), path.join(out, to));
   }
@@ -29,9 +52,10 @@ const options = {
   entryPoints: entries,
   bundle: true,
   format: 'iife',
-  target: ['chrome114', 'safari16'],
+  target: beta ? ['chrome120'] : ['chrome114', 'safari16'],
+  define: { BEYIM_BETA_API: JSON.stringify(betaApi) },
   outdir: out,
-  sourcemap: true,
+  sourcemap: !beta,
   minify: false,
   logLevel: 'info',
   legalComments: 'none',

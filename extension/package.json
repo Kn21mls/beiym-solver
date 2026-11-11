@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "package": "node scripts/build.mjs && node scripts/package.mjs"
+    "package": "node scripts/build.mjs && node scripts/package.mjs",
+    "package:beta": "node scripts/build.mjs --beta && node scripts/package.mjs --beta"
   },
   "dependencies": {
     "webextension-polyfill": "^0.12.0"
