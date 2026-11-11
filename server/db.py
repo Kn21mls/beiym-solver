@@ -28,6 +28,27 @@ CREATE TABLE IF NOT EXISTS tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tokens_user ON tokens(user_id);
+
+CREATE TABLE IF NOT EXISTS beta_invites (
+    id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL UNIQUE,
+    expires_at INTEGER NOT NULL,
+    session_hash TEXT UNIQUE,
+    session_expires_at INTEGER,
+    revoked INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS beta_usage (
+    day INTEGER NOT NULL,
+    invite_id TEXT NOT NULL REFERENCES beta_invites(id),
+    requests INTEGER NOT NULL,
+    PRIMARY KEY (day, invite_id)
+);
+
+CREATE TABLE IF NOT EXISTS beta_activation_limit (
+    minute INTEGER PRIMARY KEY,
+    attempts INTEGER NOT NULL
+);
 """
 
 

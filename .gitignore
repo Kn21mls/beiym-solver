@@ -7,4 +7,6 @@ config.json
 dist/
 .live-question.json
 docs/beyim-verified.jpg
+server/data/
+server/.env
 

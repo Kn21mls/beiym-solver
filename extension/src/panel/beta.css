@@ -1,0 +1,42 @@
+:root {
+  color-scheme: light;
+  font: 16px/1.5 "Segoe UI", system-ui, sans-serif;
+  color: #172840;
+  background: #edf3fa;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; }
+.safari-popup { width: 24rem; max-width: 100vw; }
+main { max-width: 36rem; margin: 0 auto; padding: clamp(1rem, 5vw, 2rem); }
+header { border-top: 5px solid #16478c; padding-top: .85rem; margin-bottom: 1.25rem; }
+h1 { font-size: 1.9rem; line-height: 1.15; margin: 0; }
+h2 { font-size: 1.15rem; line-height: 1.4; margin: 0 0 .65rem; }
+p { margin: .6rem 0; }
+#status { color: #394d66; }
+#status[data-error="true"] { color: #8c291d; }
+form { display: grid; gap: .65rem; }
+#selector-fields { display: grid; gap: .65rem; border: 0; padding: 0; margin: 0; min-width: 0; }
+label { font-weight: 600; }
+input, button { font: inherit; border-radius: .4rem; border: 1px solid #7c8ea4; min-height: 2.75rem; }
+input { min-width: 0; width: 100%; background: white; padding: .55rem .7rem; }
+button { color: inherit; background: white; padding: .5rem .85rem; cursor: pointer; }
+button:hover:not(:disabled) { border-color: #16478c; }
+button:disabled { opacity: .65; cursor: default; }
+.primary { color: white; background: #16478c; border-color: #16478c; font-weight: 600; }
+input:focus-visible, button:focus-visible, summary:focus-visible, h2:focus-visible {
+  outline: 3px solid #005bb5;
+  outline-offset: 3px;
+}
+.actions { display: flex; flex-wrap: wrap; gap: .55rem; margin: .9rem 0; }
+#disclosure, #result {
+  background: white;
+  border-left: 4px solid #16478c;
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-wrap: anywhere;
+}
+#answer { font-weight: 650; white-space: pre-line; }
+#question { white-space: pre-line; }
+details, footer { border-top: 1px solid #aab9cb; margin-top: 1.1rem; padding-top: .8rem; }
+summary { cursor: pointer; width: fit-content; }

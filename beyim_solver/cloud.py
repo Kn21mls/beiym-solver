@@ -120,7 +120,7 @@ class _Cloud:
         checkpoint(stop)
         return self
 
-    def solve(self, question, stop, image=None):
+    def solve(self, question, stop, image=None, *, retry=True):
         checkpoint(stop)
         if question.has_image and not image:
             raise SolverError('Для этого задания нужен снимок рисунка.')
@@ -161,6 +161,8 @@ class _Cloud:
             try:
                 result = self.request('/chat/completions', body, stop, remaining)
             except RateLimited as exc:
+                if not retry:
+                    raise
                 if rate_retries >= 2 or exc.delay > min(60, remaining):
                     raise SolverError(f'Лимит {self.label} пока не позволяет продолжить. Автопрохождение остановлено; повторите позже.') from None
                 rate_retries += 1
@@ -181,6 +183,8 @@ class _Cloud:
                 if question.options and answer['text_answer']:
                     raise AnswerFormatError('Для выбора вариантов text_answer должен быть пустым.')
             except AnswerFormatError as exc:
+                if not retry:
+                    raise
                 if repairs:
                     raise SolverError(f'{self.label} дважды нарушил формат ответа. Отправка остановлена.') from None
                 repairs += 1
