@@ -55,9 +55,11 @@ npm run package
 6. Откройте панель с активной вкладки Beyim: это выдаёт `activeTab`, необходимый для снимка cross-origin рисунков.
 7. Вернитесь в панель и нажмите «Начать».
 
-## Safari
+## Safari на macOS
 
-Сборка для Safari 18.4+ использует тот же HTTPS API и приглашения. Панель открывается из меню расширений Safari. Разрешите доступ к Beyim и к адресу API при первом использовании.
+Сборка предназначена для Safari 18.4 и новее на Mac. Она использует тот же HTTPS API и приглашения. Панель открывается из меню расширений Safari. Разрешите доступ к Beyim и к адресу API при первом использовании.
+
+На Mac можно открыть `Build-Safari.command` из корня репозитория. Он запросит HTTPS-адрес API, соберёт расширение и откроет его папку в Finder. Для сборки из терминала используйте команды ниже.
 
 ```sh
 # Из корня репозитория. Подставьте HTTPS-адрес запущенного API.
@@ -73,10 +75,11 @@ npm --prefix extension run package:safari
 ```sh
 xcrun safari-web-extension-packager extension/safari/web-extension \
   --project-location extension/safari/xcode \
-  --app-name 'Beyim Solver' --bundle-identifier com.yourteam.beyimsolver --swift
+  --app-name 'Beyim Solver' --bundle-identifier com.yourteam.beyimsolver \
+  --swift --macos-only
 ```
 
-Откройте созданный проект в Xcode, выберите команду подписи и запустите нужную цель macOS или iOS. ZIP из `package:safari` содержит ресурсы Web Extension. [Упаковка в Xcode](https://developer.apple.com/documentation/safariservices/packaging-a-web-extension-for-safari) · [Временная установка на Mac](https://developer.apple.com/documentation/safariservices/running-your-safari-web-extension)
+В Xcode выберите команду подписи, выберите `My Mac` и запустите приложение Beyim Solver. Затем включите расширение в **Safari → Настройки → Расширения**. ZIP из `package:safari` содержит ресурсы Web Extension. [Упаковка в Xcode](https://developer.apple.com/documentation/safariservices/packaging-a-web-extension-for-safari) · [Временная установка на Mac](https://developer.apple.com/documentation/safariservices/running-your-safari-web-extension)
 
 ## Ограничения
 
