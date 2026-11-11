@@ -1,5 +1,5 @@
 import browser from 'webextension-polyfill';
-import { betaApi } from '../shared/beta-config';
+import { betaApi, safari } from '../shared/beta-config';
 import type { CaptureRequest, CaptureResponse } from '../shared/messages';
 
 let panelId: number | null = null;
@@ -11,8 +11,13 @@ async function capture(tab: browser.Tabs.Tab | undefined): Promise<CaptureRespon
     return { ok: false, error: 'Не удалось определить вкладку Beyim.' };
   }
   try {
-    await browser.tabs.update(tab.id, { active: true });
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    if (typeof browser.tabs.captureVisibleTab !== 'function') {
+      return { ok: false, error: 'Эта версия Safari не поддерживает снимок вкладки для этого рисунка.' };
+    }
+    if (!tab.active && !safari) {
+      await browser.tabs.update(tab.id, { active: true });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
     const [active] = await browser.tabs.query({ windowId: tab.windowId, active: true });
     if (active?.id !== tab.id || active.url !== tab.url) {
       return { ok: false, error: 'Вернитесь к заданию Beyim и повторите разбор.' };
@@ -57,13 +62,17 @@ async function openPanel(tab?: browser.Tabs.Tab): Promise<void> {
   }
 }
 
-browser.action.onClicked.addListener((tab) => {
-  void openPanel(tab);
-});
-
-if (betaApi) {
-  browser.runtime.onInstalled.addListener(({ reason }) => {
-    if (reason === 'install') void openPanel();
+if (!safari) {
+  browser.action.onClicked.addListener((tab) => {
+    void openPanel(tab);
+  });
+  if (betaApi) {
+    browser.runtime.onInstalled.addListener(({ reason }) => {
+      if (reason === 'install') void openPanel();
+    });
+  }
+  browser.windows.onRemoved.addListener((id) => {
+    if (id === panelId) panelId = null;
   });
 }
 
@@ -71,8 +80,4 @@ browser.runtime.onMessage.addListener((message: unknown, sender: browser.Runtime
   const incoming = message as Partial<CaptureRequest>;
   if (!incoming || incoming.type !== 'capture') return undefined;
   return capture(sender.tab);
-});
-
-browser.windows.onRemoved.addListener((id) => {
-  if (id === panelId) panelId = null;
 });

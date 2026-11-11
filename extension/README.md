@@ -55,9 +55,32 @@ npm run package
 6. Откройте панель с активной вкладки Beyim: это выдаёт `activeTab`, необходимый для снимка cross-origin рисунков.
 7. Вернитесь в панель и нажмите «Начать».
 
+## Safari
+
+Сборка для Safari 18.4+ использует тот же HTTPS API и приглашения. Панель открывается из меню расширений Safari. Разрешите доступ к Beyim и к адресу API при первом использовании.
+
+```sh
+# Из корня репозитория. Подставьте HTTPS-адрес запущенного API.
+export BEYIM_BETA_API='https://your-api.example'
+npm --prefix extension ci
+npm --prefix extension run package:safari
+```
+
+На Mac для временной проверки загрузите `extension/safari/web-extension` в Safari через **Настройки → Разработчик → Добавить временное расширение**. После включения откройте Beyim, активируйте приглашение и проверьте разбор текста, рисунка и теста по теме. Если Safari не разрешает снимок вкладки, расширение всё равно читает изображения, доступные напрямую.
+
+Для установки через приложение или подготовки к распространению создайте проект на Mac с Xcode. Задайте свой идентификатор пакета для подписи.
+
+```sh
+xcrun safari-web-extension-packager extension/safari/web-extension \
+  --project-location extension/safari/xcode \
+  --app-name 'Beyim Solver' --bundle-identifier com.yourteam.beyimsolver --swift
+```
+
+Откройте созданный проект в Xcode, выберите команду подписи и запустите нужную цель macOS или iOS. ZIP из `package:safari` содержит ресурсы Web Extension. [Упаковка в Xcode](https://developer.apple.com/documentation/safariservices/packaging-a-web-extension-for-safari) · [Временная установка на Mac](https://developer.apple.com/documentation/safariservices/running-your-safari-web-extension)
+
 ## Ограничения
 
-- Chrome MVP; Safari-упаковка отложена.
+- Сборка Safari использует HTTPS API беты. Локальный запуск API по адресу из следующего пункта относится к отдельной сборке Chrome.
 - API должен быть доступен по адресу из настроек. По умолчанию `http://127.0.0.1:8787`.
 - Снимок cross-origin рисунка захватывает только видимую часть вкладки. Если рисунок больше экрана, увеличьте масштаб страницы или выделите блок селектором.
 - Если снимок не получается, откройте панель заново с активной вкладки Beyim: разрешение `activeTab` сбрасывается при переходе на другой сайт.

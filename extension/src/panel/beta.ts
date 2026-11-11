@@ -1,5 +1,5 @@
 import browser from 'webextension-polyfill';
-import { betaApi } from '../shared/beta-config';
+import { betaApi, safari } from '../shared/beta-config';
 import { ApiError, Cancelled, SolverError, checkpoint } from '../shared/errors';
 import type { ContentRequest, ContentResponse, ImageResult, PanelMessage } from '../shared/messages';
 import { isAssessment, selectorProfile } from '../shared/page';
@@ -23,6 +23,17 @@ let consent = false;
 let preview: Preview | undefined;
 let operation: Operation | undefined;
 let editingProfile: string | undefined;
+
+if (safari) {
+  document.body.classList.add('safari-popup');
+  byId('welcome').textContent = 'Откройте упражнение и снова выберите Beyim Solver в меню расширений Safari. Разрешите доступ к Beyim, если Safari спросит.';
+}
+
+async function allowApi(): Promise<void> {
+  if (safari && !await browser.permissions.request({ origins: [betaApi + '/*'] })) {
+    throw new SolverError('Разрешите доступ к адресу сервера Beyim Solver в Safari и повторите.');
+  }
+}
 
 function status(message: string, error = false): void {
   byId('status').textContent = message;
@@ -80,10 +91,14 @@ async function showError(error: unknown): Promise<void> {
 }
 
 async function currentTab(): Promise<{ id: number; url: string }> {
-  const tabs = await browser.tabs.query({ url: hosts });
+  const tabs = await browser.tabs.query(safari ? { active: true, currentWindow: true } : { url: hosts });
   const preferred = initialTab === null ? undefined : tabs.find((tab) => tab.id === Number(initialTab));
   const tab = preferred ?? tabs.find((entry) => entry.active) ?? tabs[0];
   if (tab?.id === undefined || !tab.url) throw new SolverError('Откройте упражнение Beyim и снова нажмите иконку расширения.');
+  const url = new URL(tab.url);
+  if (url.protocol !== 'https:' || (url.hostname !== 'beyim.ai' && !url.hostname.endsWith('.beyim.ai'))) {
+    throw new SolverError('Откройте упражнение Beyim и снова нажмите иконку расширения.');
+  }
   return { id: tab.id, url: tab.url };
 }
 
@@ -161,6 +176,7 @@ async function run(mode: 'analyse' | 'submit' | 'auto'): Promise<void> {
         : 'Ответ отправлен. Проверьте результат на странице.');
       return;
     }
+    await allowApi();
     const tab = await currentTab();
     work.tabId = tab.id;
     checkpoint(signal);
@@ -215,6 +231,7 @@ byId('activation').addEventListener('submit', async (event) => {
   button.disabled = true;
   const input = byId<HTMLInputElement>('code');
   try {
+    await allowApi();
     status('Активируем приглашение…');
     session = await api<Session>('/v1/beta/activate', { code: input.value.trim() });
     await browser.storage.local.set({ [sessionKey]: session });
@@ -292,6 +309,7 @@ byId('selectors').addEventListener('submit', async (event) => {
 byId('logout').addEventListener('click', async () => {
   if (operation || !session) return;
   try {
+    await allowApi();
     await api('/v1/auth/logout');
     session = undefined;
     preview = undefined;

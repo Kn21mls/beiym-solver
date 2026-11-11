@@ -4,9 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const out = path.join(root, 'dist');
 const watch = process.argv.includes('--watch');
-const beta = process.argv.includes('--beta');
+const safari = process.argv.includes('--safari');
+const beta = safari || process.argv.includes('--beta');
+const out = path.join(root, safari ? 'safari/web-extension' : 'dist');
 let betaApi = '';
 if (beta) {
   const configured = new URL(process.env.BEYIM_BETA_API ?? 'invalid');
@@ -31,11 +32,19 @@ async function copyStatic() {
   const manifestFile = path.join(root, 'manifest.json');
   if (beta) {
     const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
-    manifest.version = '0.2.0';
+    manifest.version = '0.3.0';
     manifest.description = 'Разбор упражнений Beyim с объяснением и отправкой по подтверждению.';
-    manifest.minimum_chrome_version = '120';
     manifest.permissions = ['activeTab', 'storage'];
-    manifest.host_permissions = [...manifest.content_scripts[0].matches, betaApi + '/*'];
+    const apiPattern = betaApi + '/*';
+    manifest.host_permissions = [...manifest.content_scripts[0].matches];
+    if (safari) {
+      manifest.optional_host_permissions = [apiPattern];
+      manifest.background = { scripts: ['background.js'], persistent: false };
+      manifest.action.default_popup = 'panel.html';
+    } else {
+      manifest.host_permissions.push(apiPattern);
+      manifest.minimum_chrome_version = '120';
+    }
     manifest.icons = { 128: 'icon.png' };
     manifest.action.default_icon = 'icon.png';
     await cp(path.join(root, 'src/panel/icon.png'), path.join(out, 'icon.png'));
@@ -52,8 +61,8 @@ const options = {
   entryPoints: entries,
   bundle: true,
   format: 'iife',
-  target: beta ? ['chrome120'] : ['chrome114', 'safari16'],
-  define: { BEYIM_BETA_API: JSON.stringify(betaApi) },
+  target: safari ? ['safari18.4'] : beta ? ['chrome120'] : ['chrome114'],
+  define: { BEYIM_BETA_API: JSON.stringify(betaApi), BEYIM_SAFARI: JSON.stringify(safari) },
   outdir: out,
   sourcemap: !beta,
   minify: false,
