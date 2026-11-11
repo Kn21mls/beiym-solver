@@ -15,6 +15,7 @@ p { margin: .6rem 0; }
 #status { color: #394d66; }
 #status[data-error="true"] { color: #8c291d; }
 form { display: grid; gap: .65rem; }
+#selector-fields { display: grid; gap: .65rem; border: 0; padding: 0; margin: 0; min-width: 0; }
 label { font-weight: 600; }
 input, button { font: inherit; border-radius: .4rem; border: 1px solid #7c8ea4; min-height: 2.75rem; }
 input { min-width: 0; width: 100%; background: white; padding: .55rem .7rem; }

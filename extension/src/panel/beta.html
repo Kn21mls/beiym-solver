@@ -48,6 +48,7 @@
           <summary>Настройки распознавания</summary>
           <p>Если вопрос не распознался, задайте CSS-селекторы для открытого раздела Beyim. Пустые поля используют автоматический поиск.</p>
           <form id="selectors">
+            <fieldset id="selector-fields" disabled>
             <label for="selector-root">Блок одного вопроса</label>
             <input id="selector-root" placeholder="[data-question]" spellcheck="false">
             <label for="selector-question">Текст вопроса</label>
@@ -57,6 +58,7 @@
             <label for="selector-input">Поле текстового ответа</label>
             <input id="selector-input" placeholder="textarea" spellcheck="false">
             <button>Сохранить для этого раздела</button>
+            </fieldset>
           </form>
         </details>
       </div>

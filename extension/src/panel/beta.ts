@@ -248,11 +248,14 @@ byId('stop').addEventListener('click', stop);
 byId<HTMLDetailsElement>('recognition').addEventListener('toggle', async (event) => {
   if (!(event.currentTarget as HTMLDetailsElement).open) return;
   editingProfile = undefined;
+  const fields = byId<HTMLFieldSetElement>('selector-fields');
+  fields.disabled = true;
   try {
     const tab = await currentTab();
     const { selectors } = await loadSettings(tab.url);
     editingProfile = selectorProfile(tab.url);
     for (const key of selectorFields) byId<HTMLInputElement>('selector-' + key).value = selectors[key];
+    fields.disabled = false;
   } catch (error) {
     await showError(error);
   }
