@@ -76,9 +76,8 @@ async function refreshServerStatus(): Promise<void> {
 }
 
 async function allowApi(): Promise<void> {
-  if (safari && !await browser.permissions.request({ origins: [betaApi + '/*'] })) {
-    throw new SolverError(directGroq ? 'Разрешите доступ к api.groq.com в Safari и повторите.' :
-      'Разрешите доступ к адресу сервера Beyim Solver в Safari и повторите.');
+  if (safari && !directGroq && !await browser.permissions.request({ origins: [betaApi + '/*'] })) {
+    throw new SolverError('Разрешите доступ к адресу сервера Beyim Solver в Safari и повторите.');
   }
 }
 

@@ -35,13 +35,17 @@ async function copyStatic() {
   const manifestFile = path.join(root, 'manifest.json');
   if (beta) {
     const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
-    manifest.version = directGroq ? '0.4.0' : '0.3.0';
+    manifest.version = directGroq ? '0.4.1' : '0.3.0';
     manifest.description = 'Разбор упражнений Beyim с объяснением и отправкой по подтверждению.';
     manifest.permissions = ['activeTab', 'storage'];
     const apiPattern = betaApi + '/*';
     manifest.host_permissions = [...manifest.content_scripts[0].matches];
     if (safari) {
-      manifest.optional_host_permissions = [apiPattern];
+      if (directGroq) {
+        manifest.host_permissions.push(apiPattern);
+      } else {
+        manifest.optional_host_permissions = [apiPattern];
+      }
       manifest.background = { scripts: ['background.js'], persistent: false };
       manifest.action.default_popup = 'panel.html';
     } else {
