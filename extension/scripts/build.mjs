@@ -35,7 +35,7 @@ async function copyStatic() {
   const manifestFile = path.join(root, 'manifest.json');
   if (beta) {
     const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
-    manifest.version = directGroq ? '0.4.1' : '0.3.0';
+    manifest.version = directGroq ? '0.4.2' : '0.3.0';
     manifest.description = 'Разбор упражнений Beyim с объяснением и отправкой по подтверждению.';
     manifest.permissions = ['activeTab', 'storage'];
     const apiPattern = betaApi + '/*';

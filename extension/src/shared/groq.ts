@@ -1,11 +1,18 @@
-import { ApiError, SolverError, checkpoint } from './errors';
+import { ApiError, SolverError, checkpoint, sleep } from './errors';
 import { answerSchema, prompt } from './question';
 import type { Question } from './types';
 
 const base = 'https://api.groq.com/openai/v1';
 const model = 'qwen/qwen3.8-27b';
 
-async function request(key: string, path: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
+async function request(
+  key: string,
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+  onWait?: (seconds: number) => void,
+): Promise<Response> {
+  checkpoint(signal);
   const timeout = AbortSignal.timeout(45_000);
   let response: Response;
   try {
@@ -23,7 +30,18 @@ async function request(key: string, path: string, body?: unknown, signal?: Abort
   }
   checkpoint(signal);
   if (response.status === 401) throw new ApiError(401, 'Groq не принял ключ. Вставьте действующий ключ.');
-  if (response.status === 429) throw new ApiError(429, 'Достигнут лимит Groq. Попробуйте позже.');
+  if (response.status === 429) {
+    const seconds = Number(response.headers.get('Retry-After'));
+    if (onWait && seconds > 0 && seconds <= 60) {
+      onWait(Math.ceil(seconds));
+      await sleep(Math.ceil(seconds * 1000), signal);
+      return request(key, path, body, signal);
+    }
+    const retry = Number.isFinite(seconds) && seconds > 0
+      ? `Повторите через ${Math.ceil(seconds)} с.`
+      : 'Попробуйте позже.';
+    throw new ApiError(429, 'Достигнут лимит Groq. ' + retry);
+  }
   if (!response.ok) throw new ApiError(response.status, 'Groq не смог обработать запрос.');
   return response;
 }
@@ -35,7 +53,13 @@ export async function verifyGroqKey(key: string): Promise<void> {
   await request(key, '/models/' + model);
 }
 
-export async function solveWithGroq(key: string, question: Question, image: string | null, signal: AbortSignal): Promise<unknown> {
+export async function solveWithGroq(
+  key: string,
+  question: Question,
+  image: string | null,
+  signal: AbortSignal,
+  onWait: (seconds: number) => void,
+): Promise<unknown> {
   const response = await request(key, '/chat/completions', {
     model,
     temperature: 0,
@@ -57,7 +81,7 @@ export async function solveWithGroq(key: string, question: Question, image: stri
         ] : prompt(question),
       },
     ],
-  }, signal);
+  }, signal, onWait);
   try {
     const payload = await response.json();
     return JSON.parse(payload.choices[0].message.content);

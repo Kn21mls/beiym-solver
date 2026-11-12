@@ -188,7 +188,9 @@ async function analyse(tab: { id: number; url: string }, signal: AbortSignal): P
   }
   status('Готовим объяснение…');
   if (directGroq) {
-    const answer = await solveWithGroq(groqKey, question, image, signal);
+    const answer = await solveWithGroq(groqKey, question, image, signal, (seconds) => {
+      status(`Лимит Groq. Повторим разбор через ${seconds} с…`);
+    });
     return { question, answer: validateAnswer(answer, question, 0), tabId: tab.id, url: tab.url };
   }
   const result = await api<{ answer: unknown }>('/v1/solve', {
