@@ -25,8 +25,41 @@ let operation: Operation | undefined;
 let editingProfile: string | undefined;
 
 if (safari) {
-  document.body.classList.add('safari-popup');
+  byId('local-server').hidden = false;
+  byId('start-server').addEventListener('click', () => {
+    byId('server-status').textContent = 'Открываем Beyim Server…';
+  });
+  byId('check-server').addEventListener('click', async () => {
+    try {
+      await allowApi();
+      await refreshServerStatus();
+    } catch {
+      byId('server-status').textContent = 'Разрешите Safari доступ к адресу сервера.';
+    }
+  });
+  void refreshServerStatus();
+  window.setInterval(() => { void refreshServerStatus(); }, 3000);
   byId('welcome').textContent = 'Откройте упражнение и снова выберите Beyim Solver в меню расширений Safari. Разрешите доступ к Beyim, если Safari спросит.';
+}
+
+async function refreshServerStatus(): Promise<void> {
+  const label = byId('server-status');
+  try {
+    if (!await browser.permissions.contains({ origins: [betaApi + '/*'] })) {
+      label.textContent = 'Safari проверит сервер после предоставления доступа к его адресу.';
+      return;
+    }
+    const response = await fetch(betaApi + '/health', {
+      cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(2500),
+    });
+    if (response.ok && (await response.json()).ok === true) {
+      label.textContent = 'Сервер работает';
+      return;
+    }
+  } catch {
+    // An unreachable server has the same status as a failed health check.
+  }
+  label.textContent = 'Сервер недоступен по адресу API';
 }
 
 async function allowApi(): Promise<void> {
