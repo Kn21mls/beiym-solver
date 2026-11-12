@@ -8,7 +8,7 @@ from playwright.sync_api import Error, expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "extension" / "dist"
-SHOTS = ROOT / "docs" / "store"
+SHOTS = ROOT / ".state" / "extension-test"
 LESSON = "https://beyim.ai/ru/ai/topicFeed/store-test"
 API = "https://beta.example.test"
 ASSESSMENT = "https://beyim.ai/ru/assessment/store-test"

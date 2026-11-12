@@ -57,23 +57,23 @@ npm run package
 
 ## Safari на macOS
 
-Сборка предназначена для Safari 18.4 и новее на Mac. Она использует тот же HTTPS API и приглашения. Панель открывается из меню расширений Safari. Разрешите доступ к Beyim и к адресу API при первом использовании.
+Safari 18.4+ поддерживает две сборки. Для обеих нужен Node.js 24.
 
-На Mac можно открыть `Build-Safari.command` из корня репозитория. Он запросит HTTPS-адрес API, соберёт расширение и откроет его папку в Finder. Для сборки из терминала используйте команды ниже.
+| Сборка | Команда из корня | Папка расширения |
+|---|---|---|
+| Закрытая бета с приглашениями | `npm --prefix extension run package:safari` | `extension/safari/server-extension` |
+| Личный ключ Groq | `npm --prefix extension run package:safari:groq` | `extension/safari/web-extension` |
 
-```sh
-# Из корня репозитория. Подставьте HTTPS-адрес запущенного API.
-export BEYIM_BETA_API='https://your-api.example'
-npm --prefix extension ci
-npm --prefix extension run package:safari
-```
+Для беты откройте `Build-Safari.command` или выполните `npm --prefix extension ci`, задайте `BEYIM_BETA_API` и запустите команду сборки. Чтобы запускать локальный API из панели Safari, один раз откройте `Setup-Safari-Server.command`. HTTPS-прокси для локального сервера настраивается отдельно.
 
-На Mac для временной проверки загрузите `extension/safari/web-extension` в Safari через **Настройки → Разработчик → Добавить временное расширение**. После включения откройте Beyim, активируйте приглашение и проверьте разбор текста, рисунка и теста по теме. Если Safari не разрешает снимок вкладки, расширение всё равно читает изображения, доступные напрямую.
+Для сборки с личным ключом выполните `npm --prefix extension ci`, затем команду из таблицы. Ключ хранится локально в расширении, запросы отправляются в Groq.
+
+Для временной установки выберите папку сборки с `manifest.json` через **Safari → Настройки → Разработчик → Добавить временное расширение**. Для передачи сборки используйте соответствующий ZIP из `extension/`.
 
 Для установки через приложение или подготовки к распространению создайте проект на Mac с Xcode. Задайте свой идентификатор пакета для подписи.
 
 ```sh
-xcrun safari-web-extension-packager extension/safari/web-extension \
+xcrun safari-web-extension-packager extension/safari/server-extension \
   --project-location extension/safari/xcode \
   --app-name 'Beyim Solver' --bundle-identifier com.yourteam.beyimsolver \
   --swift --macos-only
@@ -83,7 +83,7 @@ xcrun safari-web-extension-packager extension/safari/web-extension \
 
 ## Ограничения
 
-- Сборка Safari использует HTTPS API беты. Локальный запуск API по адресу из следующего пункта относится к отдельной сборке Chrome.
+- Серверный режим Safari использует HTTPS API беты. Локальный запуск API по адресу из следующего пункта относится к отдельной сборке Chrome.
 - API должен быть доступен по адресу из настроек. По умолчанию `http://127.0.0.1:8787`.
 - Снимок cross-origin рисунка захватывает только видимую часть вкладки. Если рисунок больше экрана, увеличьте масштаб страницы или выделите блок селектором.
 - Если снимок не получается, откройте панель заново с активной вкладки Beyim: разрешение `activeTab` сбрасывается при переходе на другой сайт.

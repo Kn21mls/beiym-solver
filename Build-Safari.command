@@ -15,4 +15,4 @@ fi
 
 npm --prefix extension ci
 npm --prefix extension run package:safari
-open "$PWD/extension/safari/web-extension"
+open "$PWD/extension/safari/server-extension"

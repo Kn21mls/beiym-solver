@@ -1,0 +1,48 @@
+name: Checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    env:
+      BEYIM_BETA_API: https://beta.example.test
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check tracked runtime files
+        shell: pwsh
+        run: |
+          $runtimeFiles = @(git ls-files -- server/data server/.env config.json '*.log' '*.pyc')
+          if ($runtimeFiles.Count) {
+            throw "Remove runtime files from the index: $($runtimeFiles -join ', ')"
+          }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: extension/package-lock.json
+      - run: python -m pip install -r requirements.txt -r server/requirements-dev.txt
+      - run: python -m playwright install chromium
+      - run: python -m unittest discover -s server/tests -q
+      - run: python -m unittest discover -s tests -q
+      - run: npm --prefix extension ci
+      - run: npm --prefix extension audit --audit-level=high
+      - run: npm --prefix extension run typecheck
+      - run: npm --prefix extension test
+      - run: npm --prefix extension run package
+      - run: npm --prefix extension run package:beta
+      - run: npm --prefix extension run package:safari
+      - run: npm --prefix extension run package:safari:groq
+      - run: python tests/check_beta_extension.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: extension-checks
+          path: |
+            extension/*.zip
+            .state/extension-test/*.png
+          include-hidden-files: true
