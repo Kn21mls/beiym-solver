@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import base64
-import binascii
 import sqlite3
 import threading
 import time
 from contextlib import asynccontextmanager
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,9 +14,7 @@ from beyim_solver.cloud import Groq, RateLimited
 from beyim_solver.core import Question, Settings, SolverError
 
 from . import db, security
-
-TOKEN_TTL = 30 * 24 * 60 * 60
-MAX_IMAGE_BYTES = 8 * 1024 * 1024
+from .contracts import QuestionIn, TOKEN_TTL, bearer_token, decode_image
 
 
 @asynccontextmanager
@@ -51,17 +47,6 @@ class GroqKeyIn(BaseModel):
     api_key: str = Field(min_length=8, max_length=500)
 
 
-class OptionIn(BaseModel):
-    text: str = Field(min_length=1, max_length=4000)
-
-
-class QuestionIn(BaseModel):
-    text: str = Field(min_length=1, max_length=20000)
-    options: list[OptionIn] = Field(default_factory=list)
-    kind: Literal["single", "multiple", "text"]
-    image: str | None = None
-
-
 class SolveIn(BaseModel):
     question: QuestionIn
     model: str | None = Field(default=None, max_length=200)
@@ -83,15 +68,6 @@ def issue_token(connection: sqlite3.Connection, user_id: int) -> str:
         "INSERT INTO tokens(token_hash, user_id, expires_at) VALUES(?, ?, ?)",
         (security.token_hash(token), user_id, int(time.time()) + TOKEN_TTL),
     )
-    return token
-
-
-def bearer_token(authorization: str | None) -> str:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(401, "Требуется вход.")
-    token = authorization[7:].strip()
-    if not token:
-        raise HTTPException(401, "Требуется вход.")
     return token
 
 
@@ -118,21 +94,6 @@ def user_payload(user: dict[str, Any]) -> dict[str, Any]:
         "groq_connected": bool(user.get("groq_key")),
         "groq_hint": user.get("groq_hint") or "",
     }
-
-
-def decode_image(value: str) -> str:
-    data = value.strip()
-    if data.startswith("data:"):
-        if "," not in data:
-            raise HTTPException(422, "Некорректное изображение.")
-        data = data.split(",", 1)[1]
-    try:
-        raw = base64.b64decode(data, validate=True)
-    except (ValueError, binascii.Error):
-        raise HTTPException(422, "Некорректное изображение.") from None
-    if len(raw) > MAX_IMAGE_BYTES:
-        raise HTTPException(413, "Изображение слишком большое.")
-    return base64.b64encode(raw).decode("ascii")
 
 
 @app.get("/health")

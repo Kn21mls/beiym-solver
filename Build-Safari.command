@@ -8,6 +8,11 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
+if [[ -z "${BEYIM_BETA_API:-}" ]]; then
+  read -r -p 'HTTPS-адрес API Beyim Solver: ' BEYIM_BETA_API
+  export BEYIM_BETA_API
+fi
+
 npm --prefix extension ci
 npm --prefix extension run package:safari
-open "$PWD/extension/safari/web-extension"
+open "$PWD/extension/safari/server-extension"

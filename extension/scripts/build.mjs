@@ -8,7 +8,7 @@ const watch = process.argv.includes('--watch');
 const safari = process.argv.includes('--safari');
 const directGroq = safari && !process.argv.includes('--server');
 const beta = safari || process.argv.includes('--beta');
-const out = path.join(root, safari ? 'safari/web-extension' : 'dist');
+const out = path.join(root, safari ? (process.argv.includes('--server') ? 'safari/server-extension' : 'safari/web-extension') : 'dist');
 let betaApi = '';
 if (directGroq) {
   betaApi = 'https://api.groq.com';

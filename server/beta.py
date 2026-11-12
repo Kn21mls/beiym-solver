@@ -19,12 +19,12 @@ from beyim_solver.cloud import Groq, RateLimited
 from beyim_solver.core import Question, Settings, SolverError
 
 from . import db, security
-from .app import QuestionIn, TOKEN_TTL, bearer_token, decode_image
+from .contracts import QuestionIn, TOKEN_TTL, bearer_token, decode_image
 
 DAY = 86400
 MAX_BODY = 4 * 1024 * 1024
-PER_INVITE = 10
-TOTAL = 50
+PER_INVITE = int(os.environ.get('BEYIM_BETA_PER_INVITE', '10'))
+TOTAL = int(os.environ.get('BEYIM_BETA_TOTAL', '50'))
 MAX_ACTIVE_INVITES = 5
 MODEL = TypeVar("MODEL", bound=BaseModel)
 provider_slot = threading.Lock()
@@ -34,6 +34,8 @@ provider_slot = threading.Lock()
 async def lifespan(_: FastAPI):
     if not os.environ.get("GROQ_API_KEY", "").strip():
         raise RuntimeError("Задайте GROQ_API_KEY перед запуском беты.")
+    if not 0 < PER_INVITE <= TOTAL:
+        raise RuntimeError('Ожидаются лимиты 0 < BEYIM_BETA_PER_INVITE <= BEYIM_BETA_TOTAL.')
     db.init_db()
     yield
 

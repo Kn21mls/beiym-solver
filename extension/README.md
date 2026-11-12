@@ -57,23 +57,23 @@ npm run package
 
 ## Safari на macOS
 
-По умолчанию сборка Safari 18.4+ подключается напрямую к Groq. Пользователь устанавливает готовую сборку и один раз вводит свой ключ. Ключ сохраняется в локальном хранилище расширения, а запросы отправляются только на `api.groq.com`.
+Safari 18.4+ поддерживает две сборки. Для обеих нужен Node.js 24.
 
-Разработчик может запустить `Build-Safari.command` или собрать ZIP вручную:
+| Сборка | Команда из корня | Папка расширения |
+|---|---|---|
+| Закрытая бета с приглашениями | `npm --prefix extension run package:safari` | `extension/safari/server-extension` |
+| Личный ключ Groq | `npm --prefix extension run package:safari:groq` | `extension/safari/web-extension` |
 
-```sh
-npm --prefix extension ci
-npm --prefix extension run package:safari
-```
+Для беты откройте `Build-Safari.command` или выполните `npm --prefix extension ci`, задайте `BEYIM_BETA_API` и запустите команду сборки. Чтобы запускать локальный API из панели Safari, один раз откройте `Setup-Safari-Server.command`. HTTPS-прокси для локального сервера настраивается отдельно.
 
-Результат — `extension/beyim-solver-safari.zip`. Для временной установки распакуйте ZIP и загрузите папку с `manifest.json` через **Настройки → Разработчик → Добавить временное расширение**. Если Safari не разрешает снимок вкладки, расширение всё равно читает изображения, доступные напрямую.
+Для сборки с личным ключом выполните `npm --prefix extension ci`, затем команду из таблицы. Ключ хранится локально в расширении, запросы отправляются в Groq.
 
-Для сборки с отдельным HTTPS-сервером и приглашениями задайте `BEYIM_BETA_API` и выполните `npm --prefix extension run package:safari:server`. Чтобы запускать локальный сервер из этой сборки, один раз откройте `Setup-Safari-Server.command`. HTTPS-прокси для локального сервера настраивается отдельно.
+Для временной установки выберите папку сборки с `manifest.json` через **Safari → Настройки → Разработчик → Добавить временное расширение**. Для передачи сборки используйте соответствующий ZIP из `extension/`.
 
 Для установки через приложение или подготовки к распространению создайте проект на Mac с Xcode. Задайте свой идентификатор пакета для подписи.
 
 ```sh
-xcrun safari-web-extension-packager extension/safari/web-extension \
+xcrun safari-web-extension-packager extension/safari/server-extension \
   --project-location extension/safari/xcode \
   --app-name 'Beyim Solver' --bundle-identifier com.yourteam.beyimsolver \
   --swift --macos-only
