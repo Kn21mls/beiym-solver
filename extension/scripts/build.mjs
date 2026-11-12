@@ -53,7 +53,14 @@ async function copyStatic() {
     await cp(manifestFile, path.join(out, 'manifest.json'));
   }
   for (const [from, to] of staticFiles) {
-    await cp(path.join(root, from), path.join(out, to));
+    const source = path.join(root, from);
+    const destination = path.join(out, to);
+    if (safari && to === 'panel.html') {
+      const html = await readFile(source, 'utf8');
+      await writeFile(destination, html.replace('<html lang="ru">', '<html lang="ru" class="safari-popup">'));
+    } else {
+      await cp(source, destination);
+    }
   }
 }
 

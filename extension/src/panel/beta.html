@@ -13,6 +13,12 @@
       <p id="status" role="status" aria-atomic="true">Проверяем доступ…</p>
     </header>
 
+    <section id="local-server" aria-label="Локальный сервер" hidden>
+      <a id="start-server" href="beyim-solver://start">Запустить сервер</a>
+      <button id="check-server" type="button">Проверить сервер</button>
+      <p id="server-status" role="status"></p>
+    </section>
+
     <form id="activation" hidden>
       <label for="code">Код приглашения</label>
       <input id="code" type="password" maxlength="128" autocomplete="off" spellcheck="false" required>

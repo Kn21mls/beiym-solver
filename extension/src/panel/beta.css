@@ -7,7 +7,8 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; }
-.safari-popup { width: 24rem; max-width: 100vw; }
+.safari-popup { width: 24rem; }
+.safari-popup body { background: #edf3fa; }
 main { max-width: 36rem; margin: 0 auto; padding: clamp(1rem, 5vw, 2rem); }
 header { border-top: 5px solid #16478c; padding-top: .85rem; margin-bottom: 1.25rem; }
 h1 { font-size: 1.9rem; line-height: 1.15; margin: 0; }
