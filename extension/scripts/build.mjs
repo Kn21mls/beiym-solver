@@ -6,10 +6,13 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const watch = process.argv.includes('--watch');
 const safari = process.argv.includes('--safari');
+const directGroq = safari && !process.argv.includes('--server');
 const beta = safari || process.argv.includes('--beta');
 const out = path.join(root, safari ? 'safari/web-extension' : 'dist');
 let betaApi = '';
-if (beta) {
+if (directGroq) {
+  betaApi = 'https://api.groq.com';
+} else if (beta) {
   const configured = new URL(process.env.BEYIM_BETA_API ?? 'invalid');
   if (configured.protocol !== 'https:' || configured.href !== configured.origin + '/') {
     throw new Error('Set BEYIM_BETA_API to the HTTPS origin of the beta API.');
@@ -32,7 +35,7 @@ async function copyStatic() {
   const manifestFile = path.join(root, 'manifest.json');
   if (beta) {
     const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
-    manifest.version = '0.3.0';
+    manifest.version = directGroq ? '0.4.0' : '0.3.0';
     manifest.description = 'Разбор упражнений Beyim с объяснением и отправкой по подтверждению.';
     manifest.permissions = ['activeTab', 'storage'];
     const apiPattern = betaApi + '/*';
@@ -69,7 +72,7 @@ const options = {
   bundle: true,
   format: 'iife',
   target: safari ? ['safari18.4'] : beta ? ['chrome120'] : ['chrome114'],
-  define: { BEYIM_BETA_API: JSON.stringify(betaApi), BEYIM_SAFARI: JSON.stringify(safari) },
+  define: { BEYIM_BETA_API: JSON.stringify(betaApi), BEYIM_SAFARI: JSON.stringify(safari), BEYIM_DIRECT_GROQ: JSON.stringify(directGroq) },
   outdir: out,
   sourcemap: !beta,
   minify: false,

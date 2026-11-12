@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const safari = process.argv.includes('--safari');
 const dist = path.join(root, safari ? 'safari/web-extension' : 'dist');
-const beta = safari || process.argv.includes('--beta');
+const beta = (safari && process.argv.includes('--server')) || process.argv.includes('--beta');
 const testOrigin = beta && new URL(process.env.BEYIM_BETA_API).hostname.endsWith('.test');
 const variant = beta ? '-beta' : '';
 const target = path.join(root, 'beyim-solver-' + (safari ? 'safari' : 'chrome') + variant + (testOrigin ? '-test' : '') + '.zip');
