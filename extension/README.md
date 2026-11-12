@@ -55,6 +55,19 @@ npm run package
 6. Откройте панель с активной вкладки Beyim: это выдаёт `activeTab`, необходимый для снимка cross-origin рисунков.
 7. Вернитесь в панель и нажмите «Начать».
 
+## Сборки для магазинов
+
+Для обеих сборок пользователь один раз вводит свой ключ Groq в панели расширения.
+
+| Магазин | Команда из корня репозитория | Архив для загрузки |
+| --- | --- | --- |
+| Chrome Web Store, Chrome на компьютере | `npm --prefix extension run package:chrome:groq` | `extension/beyim-solver-chrome-groq.zip` |
+| App Store, Safari на iPhone, iPad и Mac | `npm --prefix extension run package:safari` | `extension/beyim-solver-safari.zip` |
+
+Сначала установите зависимости командой `npm --prefix extension ci`. Для Google загрузите ZIP в [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole). Для Apple создайте запись приложения с платформой iOS, при необходимости добавьте macOS, и загрузите ZIP ресурсов через [Safari Web Extension Packager](https://developer.apple.com/documentation/safariservices/packaging-and-distributing-safari-web-extensions-with-app-store-connect). Перед подачей проверьте на iPhone через TestFlight ввод ключа, разбор текста и задания с рисунком. Для деклараций магазина используйте [политику конфиденциальности](../docs/store/privacy.md).
+
+Chrome на телефоне предлагает добавить расширение в Chrome на компьютере. Для запуска на iPhone используется Safari.
+
 ## Safari на macOS
 
 По умолчанию сборка Safari 18.4+ подключается напрямую к Groq. Пользователь устанавливает готовую сборку и один раз вводит свой ключ. Ключ сохраняется в локальном хранилище расширения, а запросы отправляются только на `api.groq.com`.

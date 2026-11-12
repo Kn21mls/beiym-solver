@@ -6,8 +6,9 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const watch = process.argv.includes('--watch');
 const safari = process.argv.includes('--safari');
-const directGroq = safari && !process.argv.includes('--server');
-const beta = safari || process.argv.includes('--beta');
+const chromeGroq = process.argv.includes('--chrome-groq');
+const directGroq = chromeGroq || (safari && !process.argv.includes('--server'));
+const beta = safari || chromeGroq || process.argv.includes('--beta');
 const out = path.join(root, safari ? 'safari/web-extension' : 'dist');
 let betaApi = '';
 if (directGroq) {
@@ -35,7 +36,7 @@ async function copyStatic() {
   const manifestFile = path.join(root, 'manifest.json');
   if (beta) {
     const manifest = JSON.parse(await readFile(manifestFile, 'utf8'));
-    manifest.version = directGroq ? '0.4.2' : '0.3.0';
+    manifest.version = directGroq ? '0.4.3' : '0.3.0';
     manifest.description = 'Разбор упражнений Beyim с объяснением и отправкой по подтверждению.';
     manifest.permissions = ['activeTab', 'storage'];
     const apiPattern = betaApi + '/*';
