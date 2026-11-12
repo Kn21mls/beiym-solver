@@ -20,7 +20,8 @@
     </section>
 
     <form id="activation" hidden>
-      <label for="code">Код приглашения</label>
+      <a id="create-key" href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" hidden>Создать ключ Groq</a>
+      <label id="code-label" for="code">Код приглашения</label>
       <input id="code" type="password" maxlength="128" autocomplete="off" spellcheck="false" required>
       <button id="activate" class="primary">Активировать</button>
     </form>

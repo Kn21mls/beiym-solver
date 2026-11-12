@@ -1,6 +1,7 @@
 import browser from 'webextension-polyfill';
-import { betaApi, safari } from '../shared/beta-config';
+import { betaApi, directGroq, safari } from '../shared/beta-config';
 import { ApiError, Cancelled, SolverError, checkpoint } from '../shared/errors';
+import { solveWithGroq, verifyGroqKey } from '../shared/groq';
 import type { ContentRequest, ContentResponse, ImageResult, PanelMessage } from '../shared/messages';
 import { isAssessment, selectorProfile } from '../shared/page';
 import { validateAnswer } from '../shared/question';
@@ -12,19 +13,28 @@ interface Preview { question: Question; answer: Answer; tabId: number; url: stri
 interface Operation { id: string; controller: AbortController; tabId?: number }
 
 const sessionKey = 'betaSession';
-const consentKey = 'betaConsentV1';
+const groqKeyName = 'groqApiKey';
+const consentKey = directGroq ? 'groqConsentV1' : 'betaConsentV1';
 const threshold = 0.8;
 const hosts = ['https://beyim.ai/*', 'https://*.beyim.ai/*'];
 const initialTab = new URLSearchParams(location.search).get('tab');
 const selectorFields = ['root', 'question', 'options', 'input'] as const;
 const byId = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 let session: Session | undefined;
+let groqKey = '';
 let consent = false;
 let preview: Preview | undefined;
 let operation: Operation | undefined;
 let editingProfile: string | undefined;
 
-if (safari) {
+if (directGroq) {
+  byId('create-key').hidden = false;
+  byId('code-label').textContent = 'Ключ Groq';
+  byId('activate').textContent = 'Подключить Groq';
+  byId('logout').textContent = 'Удалить ключ Groq';
+  byId('disclosure').querySelector('p')!.textContent =
+    'Для разбора текст, варианты и при необходимости снимок задания отправляются в Groq.';
+} else if (safari) {
   byId('local-server').hidden = false;
   byId('start-server').addEventListener('click', () => {
     byId('server-status').textContent = 'Открываем Beyim Server…';
@@ -39,6 +49,9 @@ if (safari) {
   });
   void refreshServerStatus();
   window.setInterval(() => { void refreshServerStatus(); }, 3000);
+}
+
+if (safari) {
   byId('welcome').textContent = 'Откройте упражнение и снова выберите Beyim Solver в меню расширений Safari. Разрешите доступ к Beyim, если Safari спросит.';
 }
 
@@ -64,7 +77,8 @@ async function refreshServerStatus(): Promise<void> {
 
 async function allowApi(): Promise<void> {
   if (safari && !await browser.permissions.request({ origins: [betaApi + '/*'] })) {
-    throw new SolverError('Разрешите доступ к адресу сервера Beyim Solver в Safari и повторите.');
+    throw new SolverError(directGroq ? 'Разрешите доступ к api.groq.com в Safari и повторите.' :
+      'Разрешите доступ к адресу сервера Beyim Solver в Safari и повторите.');
   }
 }
 
@@ -73,9 +87,13 @@ function status(message: string, error = false): void {
   byId('status').dataset.error = String(error);
 }
 
+function connected(): boolean {
+  return directGroq ? !!groqKey : !!session;
+}
+
 function render(): void {
-  byId('activation').hidden = !!session;
-  byId('workspace').hidden = !session;
+  byId('activation').hidden = connected();
+  byId('workspace').hidden = !connected();
   byId('disclosure').hidden = consent;
   byId('actions').hidden = !consent;
   byId('result').hidden = !preview;
@@ -117,7 +135,12 @@ async function showError(error: unknown): Promise<void> {
   if (error instanceof ApiError && error.status === 401) {
     session = undefined;
     preview = undefined;
-    await browser.storage.local.remove(sessionKey);
+    if (directGroq) {
+      groqKey = '';
+      await browser.storage.local.remove(groqKeyName);
+    } else {
+      await browser.storage.local.remove(sessionKey);
+    }
   }
   status(error instanceof Error ? error.message : 'Повторите попытку.', !(error instanceof Cancelled));
   render();
@@ -165,6 +188,10 @@ async function analyse(tab: { id: number; url: string }, signal: AbortSignal): P
     throw new SolverError('Задание изменилось. Нажмите «Разобрать задание» ещё раз.');
   }
   status('Готовим объяснение…');
+  if (directGroq) {
+    const answer = await solveWithGroq(groqKey, question, image, signal);
+    return { question, answer: validateAnswer(answer, question, 0), tabId: tab.id, url: tab.url };
+  }
   const result = await api<{ answer: unknown }>('/v1/solve', {
     question: { text: question.text, kind: question.kind, options: question.options.map(({ text }) => ({ text })), image },
   }, signal);
@@ -193,7 +220,7 @@ async function submit(value: Preview, work: Operation): Promise<void> {
 }
 
 async function run(mode: 'analyse' | 'submit' | 'auto'): Promise<void> {
-  if (operation || !session || !consent) return;
+  if (operation || !connected() || !consent) return;
   const previous = preview;
   preview = undefined;
   const work: Operation = { id: crypto.randomUUID(), controller: new AbortController() };
@@ -265,12 +292,20 @@ byId('activation').addEventListener('submit', async (event) => {
   const input = byId<HTMLInputElement>('code');
   try {
     await allowApi();
-    status('Активируем приглашение…');
-    session = await api<Session>('/v1/beta/activate', { code: input.value.trim() });
-    await browser.storage.local.set({ [sessionKey]: session });
+    if (directGroq) {
+      status('Проверяем ключ Groq…');
+      const key = input.value.trim();
+      await verifyGroqKey(key);
+      await browser.storage.local.set({ [groqKeyName]: key });
+      groqKey = key;
+    } else {
+      status('Активируем приглашение…');
+      session = await api<Session>('/v1/beta/activate', { code: input.value.trim() });
+      await browser.storage.local.set({ [sessionKey]: session });
+    }
     input.value = '';
     byId('welcome').hidden = false;
-    status('Приглашение активировано.');
+    status(directGroq ? 'Groq подключён.' : 'Приглашение активировано.');
     render();
     byId('open-beyim').focus();
   } catch (error) {
@@ -340,15 +375,18 @@ byId('selectors').addEventListener('submit', async (event) => {
   }
 });
 byId('logout').addEventListener('click', async () => {
-  if (operation || !session) return;
+  if (operation || !connected()) return;
   try {
-    await allowApi();
-    await api('/v1/auth/logout');
+    if (!directGroq) {
+      await allowApi();
+      await api('/v1/auth/logout');
+    }
+    await browser.storage.local.remove([directGroq ? groqKeyName : sessionKey, consentKey]);
+    groqKey = '';
     session = undefined;
     preview = undefined;
     consent = false;
-    await browser.storage.local.remove([sessionKey, consentKey]);
-    status('Доступ отключён. Для подключения понадобится новый код.');
+    status(directGroq ? 'Ключ удалён.' : 'Доступ отключён. Для подключения понадобится новый код.');
     render();
     byId('code').focus();
   } catch (error) {
@@ -360,12 +398,18 @@ document.addEventListener('keydown', (event) => {
 });
 window.addEventListener('pagehide', stop);
 
-void browser.storage.local.get([sessionKey, consentKey]).then(async (stored) => {
-  const saved = stored[sessionKey] as Session | undefined;
-  if (saved?.token && saved.expires_at > Date.now() / 1000) session = saved;
-  else if (saved) await browser.storage.local.remove(sessionKey);
+void browser.storage.local.get([directGroq ? groqKeyName : sessionKey, consentKey]).then(async (stored) => {
+  if (directGroq) {
+    groqKey = typeof stored[groqKeyName] === 'string' ? stored[groqKeyName] : '';
+  } else {
+    const saved = stored[sessionKey] as Session | undefined;
+    if (saved?.token && saved.expires_at > Date.now() / 1000) session = saved;
+    else if (saved) await browser.storage.local.remove(sessionKey);
+  }
   consent = stored[consentKey] === true;
-  status(session ? 'Готово к разбору.' : 'Введите код, полученный от организатора беты.');
+  status(connected() ? 'Готово к разбору.' : directGroq
+    ? 'Создайте ключ Groq и вставьте его сюда.'
+    : 'Введите код, полученный от организатора беты.');
   render();
-  if (!session) byId('code').focus();
+  if (!connected()) byId('code').focus();
 }).catch(showError);
