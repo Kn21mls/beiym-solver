@@ -1,88 +1,28 @@
-# Beyim Solver Extension
+# Beyim Solver — браузерное расширение
 
-Для закрытой беты с установкой из Chrome Web Store используйте [инструкцию по выпуску](../docs/store/README.md). Бета собирается с HTTPS-адресом проекта и подключается по приглашению.
+Расширение считывает задание на Beyim и предлагает решение с помощью Groq. Версии для Firefox, Chromium и Safari используют личный ключ Groq напрямую; запуск локального сервера им не нужен. При разборе текст задания, варианты и при необходимости изображение отправляются в Groq. Ключ сохраняется в локальном хранилище расширения; не включайте его в архивы или репозиторий.
 
-### Тесты за тему и другие блоки
+## Сборка
 
-В бете откройте вопрос на `/assessment/…` и нажмите «Разобрать задание». Если виден один вопрос со стандартной разметкой, расширение попробует прочитать его автоматически. «Выбрать на странице» отмечает вариант или заполняет поле. Переходы и сдача теста выполняются на Beyim.
+Установите Node.js 24, затем в папке `extension`:
 
-Для нестандартной разметки или страницы с несколькими вопросами откройте «Настройки распознавания». Укажите блок ровно одного вопроса, например `.test-question.is-active`. Если нужно, заполните селектор текста и либо селектор вариантов, либо селектор поля ввода. Они ищутся внутри выбранного блока. Настройки тестов сохраняются отдельно от упражнений урока. Чтобы вернуться к автоматическому поиску, очистите поля и сохраните.
-
-Базовое Chrome-расширение (MV3) для Beyim. Панель открывается отдельным окном, читает задание со страницы, отправляет его на локальный API и применяет ответ.
-
-## Что уже есть
-
-- Content script на `beyim.ai`: извлекает вопрос, варианты, текстовое поле и рисунок; выбирает ответ и нажимает проверку/далее. Если рисунок нельзя прочитать напрямую из-за cross-origin, используется снимок видимой области вкладки.
-- Панель: регистрация/вход в API, сохранение Groq-ключа на сервере, запуск и остановка автопрохождения.
-- BYOK: Groq-ключ вводится вручную. Groq не даёт создавать ключи через API, поэтому кнопка «Открыть Groq» ведёт на `console.groq.com/keys`.
-- API: FastAPI + SQLite, ключ Groq шифруется Fernet, пароли — scrypt, сессии — хеши токенов.
-
-## Запуск API
-
-```powershell
-Set-Location 'C:\Users\Nout\Documents\ChatGPT\Beyim Solver'
-.\.venv\Scripts\python.exe -m pip install -r server\requirements.txt
-.\Start-api.cmd
-```
-
-Подробнее: `server/README.md`.
-
-## Сборка расширения
-
-```powershell
-Set-Location 'C:\Users\Nout\Documents\ChatGPT\Beyim Solver\extension'
-npm install
+```bash
+npm ci
 npm run typecheck
 npm test
-npm run build
-npm run package
+npm run package:chromium
+npm run package:firefox
+npm run package:safari:groq
 ```
 
-`npm run package` создаёт `beyim-solver-chrome.zip`. Для локальной установки можно загрузить распакованный `extension/dist`:
+Команды создают папки `chromium/`, `firefox/`, `safari/web-extension/` и отдельные ZIP-архивы. Они предназначены для локальной проверки и не подписаны магазинами.
 
-1. Откройте `chrome://extensions`.
-2. Включите «Режим разработчика».
-3. Нажмите «Загрузить распакованное расширение» и выберите `extension/dist`.
-4. Нажмите на иконку Beyim Solver — откроется отдельная панель.
+## Установка
 
-## Первый запуск
+- **Chrome, Edge, Brave, Opera, Vivaldi и другие настольные Chromium-браузеры:** откройте страницу расширений, включите режим разработчика и выберите «Загрузить распакованное расширение», указав папку `chromium/`. В Chrome это `chrome://extensions`, в Edge — `edge://extensions`. Поддержка конкретных версий браузеров, кроме проверенного Chromium, требует отдельной проверки.
+- **Firefox 142+:** откройте `about:debugging#/runtime/this-firefox`, нажмите «Загрузить временное дополнение» и выберите `firefox/manifest.json`. Установка временная, до закрытия Firefox. Постоянная установка в обычном Firefox требует подписи Mozilla.
+- **Safari 18.4+ на macOS:** используйте `safari/web-extension/` для создания приложения расширения через `xcrun safari-web-extension-packager` и Xcode или Apple Web Extension Packager. Для распространения потребуются соответствующие подпись и публикация Apple. На Linux Safari не проверен.
 
-1. Запустите API.
-2. В панели откройте вкладку «Подключение».
-3. Зарегистрируйтесь по email и паролю.
-4. Нажмите «Открыть Groq», войдите в аккаунт Groq, создайте ключ в API Keys и вставьте его в панель.
-5. Откройте Beyim, войдите и откройте урок.
-6. Откройте панель с активной вкладки Beyim: это выдаёт `activeTab`, необходимый для снимка cross-origin рисунков.
-7. Вернитесь в панель и нажмите «Начать».
+После установки откройте страницу Beyim, нажмите значок расширения, подключите Groq и подтвердите передачу данных. Обновите вкладку Beyim после установки, если она была открыта раньше.
 
-## Safari
-
-Сборка для Safari 18.4+ использует тот же HTTPS API и приглашения. Панель открывается из меню расширений Safari. Разрешите доступ к Beyim и к адресу API при первом использовании.
-
-```sh
-# Из корня репозитория. Подставьте HTTPS-адрес запущенного API.
-export BEYIM_BETA_API='https://your-api.example'
-npm --prefix extension ci
-npm --prefix extension run package:safari
-```
-
-На Mac для временной проверки загрузите `extension/safari/web-extension` в Safari через **Настройки → Разработчик → Добавить временное расширение**. После включения откройте Beyim, активируйте приглашение и проверьте разбор текста, рисунка и теста по теме. Если Safari не разрешает снимок вкладки, расширение всё равно читает изображения, доступные напрямую.
-
-Для установки через приложение или подготовки к распространению создайте проект на Mac с Xcode. Задайте свой идентификатор пакета для подписи.
-
-```sh
-xcrun safari-web-extension-packager extension/safari/web-extension \
-  --project-location extension/safari/xcode \
-  --app-name 'Beyim Solver' --bundle-identifier com.yourteam.beyimsolver --swift
-```
-
-Откройте созданный проект в Xcode, выберите команду подписи и запустите нужную цель macOS или iOS. ZIP из `package:safari` содержит ресурсы Web Extension. [Упаковка в Xcode](https://developer.apple.com/documentation/safariservices/packaging-a-web-extension-for-safari) · [Временная установка на Mac](https://developer.apple.com/documentation/safariservices/running-your-safari-web-extension)
-
-## Ограничения
-
-- Сборка Safari использует HTTPS API беты. Локальный запуск API по адресу из следующего пункта относится к отдельной сборке Chrome.
-- API должен быть доступен по адресу из настроек. По умолчанию `http://127.0.0.1:8787`.
-- Снимок cross-origin рисунка захватывает только видимую часть вкладки. Если рисунок больше экрана, увеличьте масштаб страницы или выделите блок селектором.
-- Если снимок не получается, откройте панель заново с активной вкладки Beyim: разрешение `activeTab` сбрасывается при переходе на другой сайт.
-- Автоматизация может нарушать правила Beyim; используйте только там, где это допустимо.
-- Для production задайте `BEYIM_SECRET_KEY`, HTTPS и ограничьте CORS/доступ к API.
+Полезные инструкции: [Chrome](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world), [Edge](https://learn.microsoft.com/microsoft-edge/extensions/getting-started/extension-sideloading), [Firefox](https://extensionworkshop.com/documentation/develop/temporary-installation-in-firefox/), [Safari](https://developer.apple.com/documentation/safariservices/packaging-a-safari-web-extension).

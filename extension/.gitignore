@@ -3,3 +3,6 @@ dist/
 safari/
 *.zip
 .DS_Store
+
+firefox/
+chromium/
