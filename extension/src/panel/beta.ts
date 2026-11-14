@@ -242,7 +242,23 @@ async function run(mode: 'analyse' | 'submit' | 'auto'): Promise<void> {
     work.tabId = tab.id;
     checkpoint(signal);
     if (mode === 'auto') {
-      if (isAssessment(tab.url) || !/\/topicFeed(?:\/|$)/i.test(new URL(tab.url).pathname)) {
+      if (isAssessment(tab.url)) {
+        for (let processed = 0; processed < 100; processed += 1) {
+          const value = await analyse(tab, signal);
+          checkpoint(signal);
+          const last = await send<boolean>(tab.id, {
+            type: 'assessment-step', operation: work.id, question: value.question,
+            answer: validateAnswer(value.answer, value.question, threshold),
+          });
+          checkpoint(signal);
+          if (last) {
+            status('Последний ответ выбран. Проверьте ответы и завершите оценивание на Beyim.');
+            return;
+          }
+        }
+        throw new SolverError('Обработано 100 вопросов. Проверьте страницу перед продолжением.');
+      }
+      if (!/\/topicFeed(?:\/|$)/i.test(new URL(tab.url).pathname)) {
         throw new SolverError('Откройте урок с упражнениями Beyim для автопрохождения.');
       }
       for (let solved = 0; solved < 10; solved += 1) {

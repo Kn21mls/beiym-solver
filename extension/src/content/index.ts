@@ -103,6 +103,26 @@ function sameQuestion(left: Question, right: Question): boolean {
   );
 }
 
+function assessmentCard(): { root: Element; heading: Element; options: Element[] } | undefined {
+  const heading = all(document, 'h1,h2,h3,h4,h5,h6,p,div,span').find((node) =>
+    node.children.length === 0 && /^Вопрос\s+\d+$/i.test(text(node)),
+  );
+  if (!heading) return;
+  for (let root = heading.parentElement; root && root !== document.body; root = root.parentElement) {
+    const options = Array.from(root.querySelectorAll(CONTROL)).filter((node) =>
+      usable(node) || visible(node.parentElement),
+    );
+    if (options.length >= 2) return { root, heading, options };
+  }
+}
+
+function assessmentPrompt(root: Element, heading: Element, option: Element): string {
+  const range = document.createRange();
+  range.setStartAfter(heading);
+  range.setEndBefore(option.closest('label,[role=radio],[role=checkbox]') ?? option);
+  return root.contains(option) ? range.toString().trim() : '';
+}
+
 function genericRoot(assessment: boolean): Element {
   const controls = (element: Element) => [...element.querySelectorAll(CONTROL)].filter(usable);
   const candidates = all(document, QUESTION_CONTAINER).filter((element) =>
@@ -144,6 +164,7 @@ function genericPrompt(root: Element): string {
 
 function extract(selectors: Selectors): Question {
   const assessment = isAssessment(location.href);
+  const card = assessment && !selectors.root ? assessmentCard() : undefined;
   let root: Element;
   let adapter: Question['adapter'] = 'generic';
   let submitSelector = '';
@@ -151,6 +172,8 @@ function extract(selectors: Selectors): Question {
 
   if (selectors.root) {
     root = unique(document, selectors.root);
+  } else if (card) {
+    root = card.root;
   } else {
     const activities = assessment ? [] : all(document, 'div.activity.relative .swiper-slide-active').filter(
       (element) => element.querySelector('form.activity input') && !element.querySelector('label.answerTrue'),
@@ -170,14 +193,14 @@ function extract(selectors: Selectors): Question {
 
   const inputs = selectors.options
     ? all(root, selectors.options)
-    : [...root.querySelectorAll(CONTROL)].filter(usable);
+    : card?.options ?? [...root.querySelectorAll(CONTROL)].filter(usable);
   if (inputs.length > 30) throw new SolverError('Найдено слишком много вариантов. Уточните блок задания.');
 
-  const options: Option[] = inputs.map((element) => {
+  const options: Option[] = inputs.map((element, index) => {
     const native = element.matches(CONTROL) ? element : element.querySelector(CONTROL);
     const label = native ? labelsOf(native).find(visible) : null;
     return {
-      text: native ? labelFor(native) || text(element) : text(element),
+      text: native ? labelFor(native) || text(element) || (card ? String.fromCharCode(65 + index) : '') : text(element),
       selector: path(element),
       label_selector: label ? path(label) : '',
       kind: native?.getAttribute('type') || native?.getAttribute('role') || 'custom',
@@ -205,7 +228,7 @@ function extract(selectors: Selectors): Question {
     if (!questionBlock) throw new SolverError('Не найден текст упражнения Beyim.');
     prompt = text(questionBlock);
   } else {
-    prompt = genericPrompt(root);
+    prompt = card && inputs.length ? assessmentPrompt(root, card.heading, inputs[0]) || genericPrompt(root) : genericPrompt(root);
   }
   if (!prompt || prompt.length > 16000) throw new SolverError('Текст вопроса пустой или слишком длинный.');
 
@@ -403,11 +426,58 @@ async function betaSubmit(question: Question, answer: Answer, check: () => void,
   throw new SolverError('Beyim не подтвердил правильный ответ. Посмотрите результат на странице.');
 }
 
-async function betaOperation(operation: string, work: (check: () => void) => Promise<void>): Promise<void> {
+function assessmentProgress(): { index: number; total: number } {
+  const text = document.body.innerText;
+  const progress = text.match(/Вопросы\s+(\d+)\s+из\s+(\d+)/i);
+  const index = Number(progress?.[1]);
+  const total = Number(progress?.[2]);
+  if (!isAssessment(location.href) || !/Оценивание за тему/i.test(text) ||
+      !Number.isSafeInteger(index) || !Number.isSafeInteger(total) || index < 1 || index > total) {
+    throw new SolverError('Не удалось определить номер вопроса оценивания за тему.');
+  }
+  return { index, total };
+}
+
+async function assessmentStep(question: Question, answer: Answer, check: () => void): Promise<boolean> {
+  const { index, total } = assessmentProgress();
+  await betaSubmit(question, answer, check, true);
+  check();
+  if (index === total) return true;
+
+  const settings = await loadSettings(location.href);
+  const current = extract(settings.selectors);
+  const progress = assessmentProgress();
+  if (progress.index !== index || progress.total !== total ||
+      current.revision !== question.revision || !sameQuestion(question, current)) {
+    throw new SolverError('Вопрос изменился. Проверьте страницу перед повторным запуском.');
+  }
+  const buttons = Array.from(document.querySelectorAll('button')).filter((button) =>
+    visible(button) && !button.disabled && button.getAttribute('aria-disabled') !== 'true' &&
+    /^(Далее|Следующий вопрос)$/i.test(button.innerText.trim()),
+  );
+  if (buttons.length !== 1) throw new SolverError('Не найдена однозначная кнопка «Далее».');
+  check();
+  buttons[0].click();
+
+  const deadline = performance.now() + settings.transition_timeout * 1000;
+  while (performance.now() < deadline) {
+    check();
+    try {
+      const next = assessmentProgress();
+      if (next.total === total && next.index === index + 1) return false;
+    } catch {
+      // The next question may still be loading.
+    }
+    await wait(150);
+  }
+  throw new SolverError('Beyim не подтвердил переход. Проверьте текущий вопрос.');
+}
+
+async function betaOperation<T>(operation: string, work: (check: () => void) => Promise<T>): Promise<T> {
   const controller = new AbortController();
   cancelled.set(operation, controller);
   try {
-    await work(() => {
+    return await work(() => {
       if (controller.signal.aborted) throw new Cancelled('Остановлено.');
     });
   } finally {
@@ -597,6 +667,37 @@ async function captureImage(question: Question, max: number): Promise<ImageResul
     });
   if (!images.length) throw new SolverError('В задании не найден рисунок.');
   const limit = Math.min(2000, Math.max(256, max));
+  if (isAssessment(location.href) && images.length > 1) {
+    const ordered = all(root, 'img,canvas,svg').filter((element) => images.includes(element));
+    const tiles: ImageResult[] = [];
+    for (const element of ordered) {
+      try {
+        const { source, width, height } = await sourceOf(element, limit);
+        tiles.push(draw(source, width, height, limit));
+      } catch {
+        tiles.push(await screenshot(element, limit));
+      }
+    }
+    const canvas = document.createElement('canvas');
+    const width = Math.max(...tiles.map((tile) => tile.width));
+    const height = tiles.reduce((sum, tile) => sum + tile.height, 0);
+    const scale = Math.min(1, limit / Math.max(width, height));
+    canvas.width = Math.ceil(width * scale);
+    canvas.height = Math.ceil(height * scale);
+    const context = canvas.getContext('2d');
+    if (!context) throw new SolverError('Не удалось собрать изображения вариантов.');
+    context.fillStyle = 'white';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    let offset = 0;
+    for (const tile of tiles) {
+      const image = new Image();
+      image.src = tile.dataUrl;
+      await image.decode();
+      context.drawImage(image, 0, offset, tile.width * scale, tile.height * scale);
+      offset += tile.height * scale;
+    }
+    return { dataUrl: canvas.toDataURL('image/jpeg', 0.9), width: canvas.width, height: canvas.height };
+  }
   try {
     const { source, width, height } = await sourceOf(images[0], limit);
     return draw(source, width, height, limit);
@@ -630,6 +731,8 @@ async function handle(request: ContentRequest): Promise<unknown> {
       return betaOperation(request.operation, prepare);
     case 'beta-submit':
       return betaOperation(request.operation, (check) => betaSubmit(request.question, request.answer, check));
+    case 'assessment-step':
+      return betaOperation(request.operation, (check) => assessmentStep(request.question, request.answer, check));
     case 'beta-select':
       return betaOperation(request.operation, (check) => betaSubmit(request.question, request.answer, check, true));
     case 'beta-cancel':
